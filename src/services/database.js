@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DB_NAME = 'dailyexpense.db';
-const DB_VERSION = 14;
+const DB_VERSION = 15;
 
 let db = null;
 
@@ -29,6 +29,7 @@ export const initializeDatabase = async () => {
     await database.execAsync('DROP TABLE IF EXISTS budgets');
     await database.execAsync('DROP TABLE IF EXISTS categories');
     await database.execAsync('DROP TABLE IF EXISTS persons');
+    await database.execAsync('DROP TABLE IF EXISTS sources');
     await database.execAsync('DROP TABLE IF EXISTS recurring_templates');
     await database.execAsync(`PRAGMA user_version = ${DB_VERSION}`);
   }
@@ -64,6 +65,10 @@ export const initializeDatabase = async () => {
       company_name TEXT,
       category_id INTEGER,
       date TEXT NOT NULL,
+      due_date TEXT,
+      due_to_person_id INTEGER,
+      repayment_for_entry_id INTEGER,
+      is_due_on_account INTEGER DEFAULT 0,
       notes TEXT,
       is_recurring INTEGER DEFAULT 0,
       invoice_uri TEXT,
@@ -71,11 +76,13 @@ export const initializeDatabase = async () => {
       invoice_uri_2 TEXT,
       invoice_type_2 TEXT,
       person_id INTEGER,
+      source_id INTEGER,
       show_in_account INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id),
       FOREIGN KEY (category_id) REFERENCES categories(id),
-      FOREIGN KEY (person_id) REFERENCES persons(id)
+      FOREIGN KEY (person_id) REFERENCES persons(id),
+      FOREIGN KEY (source_id) REFERENCES sources(id)
     );
   `);
 
@@ -107,6 +114,20 @@ export const initializeDatabase = async () => {
   `);
 
   await database.execAsync(`
+    CREATE TABLE IF NOT EXISTS sources (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      is_default INTEGER DEFAULT 0,
+      is_locked INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      UNIQUE(user_id, name)
+    );
+  `);
+
+  await database.execAsync(`
     CREATE TABLE IF NOT EXISTS recurring_templates (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -116,16 +137,54 @@ export const initializeDatabase = async () => {
       amount REAL NOT NULL,
       company_name TEXT,
       person_id INTEGER,
+      source_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id),
-      FOREIGN KEY (person_id) REFERENCES persons(id)
+      FOREIGN KEY (person_id) REFERENCES persons(id),
+      FOREIGN KEY (source_id) REFERENCES sources(id)
     );
   `);
 
+  await ensureEntriesDueDateColumn(database);
+  await ensureEntriesDueToPersonColumn(database);
+  await ensureEntriesRepaymentRefColumn(database);
+  await ensureEntriesDueOnAccountColumn(database);
   await seedDefaultCategories(database);
 
   return database;
+};
+
+const ensureEntriesDueDateColumn = async (database) => {
+  const columns = await database.getAllAsync(`PRAGMA table_info(entries)`);
+  const hasDueDate = columns.some((column) => column.name === 'due_date');
+  if (!hasDueDate) {
+    await database.execAsync('ALTER TABLE entries ADD COLUMN due_date TEXT');
+  }
+};
+
+const ensureEntriesDueOnAccountColumn = async (database) => {
+  const columns = await database.getAllAsync(`PRAGMA table_info(entries)`);
+  const hasDueOnAccount = columns.some((column) => column.name === 'is_due_on_account');
+  if (!hasDueOnAccount) {
+    await database.execAsync('ALTER TABLE entries ADD COLUMN is_due_on_account INTEGER DEFAULT 0');
+  }
+};
+
+const ensureEntriesDueToPersonColumn = async (database) => {
+  const columns = await database.getAllAsync(`PRAGMA table_info(entries)`);
+  const hasDueToPerson = columns.some((column) => column.name === 'due_to_person_id');
+  if (!hasDueToPerson) {
+    await database.execAsync('ALTER TABLE entries ADD COLUMN due_to_person_id INTEGER');
+  }
+};
+
+const ensureEntriesRepaymentRefColumn = async (database) => {
+  const columns = await database.getAllAsync(`PRAGMA table_info(entries)`);
+  const hasRepaymentRef = columns.some((column) => column.name === 'repayment_for_entry_id');
+  if (!hasRepaymentRef) {
+    await database.execAsync('ALTER TABLE entries ADD COLUMN repayment_for_entry_id INTEGER');
+  }
 };
 
 const seedDefaultCategories = async (database) => {
@@ -136,7 +195,6 @@ const seedDefaultCategories = async (database) => {
     { name: 'Food & Dining', icon: 'fast-food', color: '#FF6B6B' },
     { name: 'Transport', icon: 'car', color: '#4ECDC4' },
     { name: 'Shopping', icon: 'cart', color: '#45B7D1' },
-    { name: 'Bills & Utilities', icon: 'flash', color: '#96CEB4' },
     { name: 'Entertainment', icon: 'game-controller', color: '#FFEAA7' },
     { name: 'Health', icon: 'medkit', color: '#DDA0DD' },
     { name: 'Education', icon: 'book', color: '#98D8C8' },

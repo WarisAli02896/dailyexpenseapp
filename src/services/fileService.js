@@ -1,7 +1,8 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
+import { FILE_MESSAGES } from '../../messages/fileMessages';
 
 const INVOICES_DIR = `${FileSystem.documentDirectory}invoices/`;
 
@@ -38,7 +39,7 @@ export const pickInvoice = async () => {
     };
   } catch (error) {
     console.error('Pick Invoice Error:', error);
-    return { success: false, message: 'Failed to pick file.' };
+    return { success: false, message: FILE_MESSAGES.PICK_FAILED };
   }
 };
 
@@ -46,7 +47,7 @@ export const takePhoto = async () => {
   try {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      return { success: false, message: 'Camera permission is required to take photos.' };
+      return { success: false, message: FILE_MESSAGES.CAMERA_PERMISSION_REQUIRED };
     }
 
     const result = await ImagePicker.launchCameraAsync({
@@ -70,7 +71,7 @@ export const takePhoto = async () => {
     };
   } catch (error) {
     console.error('Take Photo Error:', error);
-    return { success: false, message: 'Failed to take photo.' };
+    return { success: false, message: FILE_MESSAGES.TAKE_PHOTO_FAILED };
   }
 };
 
@@ -78,7 +79,7 @@ export const pickFromGallery = async () => {
   try {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      return { success: false, message: 'Gallery permission is required.' };
+      return { success: false, message: FILE_MESSAGES.GALLERY_PERMISSION_REQUIRED };
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -103,7 +104,7 @@ export const pickFromGallery = async () => {
     };
   } catch (error) {
     console.error('Pick From Gallery Error:', error);
-    return { success: false, message: 'Failed to pick image.' };
+    return { success: false, message: FILE_MESSAGES.PICK_IMAGE_FAILED };
   }
 };
 

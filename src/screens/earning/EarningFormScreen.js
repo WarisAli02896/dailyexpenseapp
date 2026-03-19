@@ -73,7 +73,7 @@ const EarningFormScreen = ({ navigation }) => {
       const activePersonResult = await getActivePerson(user.id);
       const activePerson = activePersonResult.success ? activePersonResult.data : null;
       if (!activePerson) {
-        showAlert('Account Required', 'Please set an active account first from Accounts tab.');
+        showAlert('Account Required', EARNING_MESSAGES.ACTIVE_ACCOUNT_REQUIRED);
         setLoading(false);
         return;
       }

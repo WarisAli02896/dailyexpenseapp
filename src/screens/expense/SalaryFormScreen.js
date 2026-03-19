@@ -16,7 +16,8 @@ import { COLORS } from '../../constants/colors';
 import { FONTS } from '../../constants/fonts';
 import { addEntry } from '../../services/entryService';
 import { addOrUpdateTemplate } from '../../services/recurringService';
-import { saveInvoice, formatFileSize, isImageFile, getFileType } from '../../services/fileService';
+import { saveInvoice, formatFileSize, getFileType } from '../../services/fileService';
+import { getActivePerson } from '../../services/personService';
 import { useAuth } from '../../hooks/useAuth';
 import { formatDateForDB, getMonthName } from '../../utils/dateUtils';
 import { showAlert } from '../../utils/alertUtils';
@@ -28,6 +29,8 @@ const SalaryFormScreen = ({ navigation }) => {
   const [amount, setAmount] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
   const [invoice, setInvoice] = useState(null);
+  const [activePersonId, setActivePersonId] = useState(null);
+  const [activePersonName, setActivePersonName] = useState('');
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -48,11 +51,23 @@ const SalaryFormScreen = ({ navigation }) => {
     setInvoice(null);
   };
 
+  React.useEffect(() => {
+    const loadActiveData = async () => {
+      if (!user) return;
+      const personResult = await getActivePerson(user.id);
+
+      setActivePersonId(personResult.success && personResult.data ? personResult.data.id : null);
+      setActivePersonName(personResult.success && personResult.data ? personResult.data.name : '');
+    };
+    loadActiveData();
+  }, [user]);
+
   const validate = () => {
     const newErrors = {};
     if (!companyName.trim()) newErrors.companyName = 'Company name is required';
     if (!amount.trim()) newErrors.amount = 'Amount is required';
     else if (parseFloat(amount) <= 0) newErrors.amount = 'Amount must be greater than 0';
+    if (!activePersonId) newErrors.account = EARNING_MESSAGES.ACTIVE_ACCOUNT_REQUIRED;
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -62,6 +77,12 @@ const SalaryFormScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
+      if (!activePersonId) {
+        showAlert('Account Required', EARNING_MESSAGES.ACTIVE_ACCOUNT_REQUIRED);
+        setLoading(false);
+        return;
+      }
+
       let invoiceUri = null;
       let invoiceType = null;
       if (invoice) {
@@ -77,6 +98,8 @@ const SalaryFormScreen = ({ navigation }) => {
         amount: parseFloat(amount),
         companyName,
         date: formatDateForDB(new Date()),
+        personId: activePersonId,
+        showInAccount: true,
         isRecurring,
         invoiceUri,
         invoiceType,
@@ -91,6 +114,7 @@ const SalaryFormScreen = ({ navigation }) => {
             title: `Salary - ${companyName}`,
             amount: parseFloat(amount),
             companyName,
+            personId: activePersonId,
           });
         }
         showAlert('Success', EARNING_MESSAGES.SALARY_ADD_SUCCESS);
@@ -160,6 +184,22 @@ const SalaryFormScreen = ({ navigation }) => {
               </View>
             </View>
           </View>
+
+          <View style={styles.accountCard}>
+            <View style={styles.accountLeft}>
+              <Ionicons name="person-outline" size={18} color={COLORS.primary} />
+              <View>
+                <Text style={styles.accountLabel}>Account</Text>
+                <Text style={styles.accountValue}>
+                  {activePersonName || 'No active account selected'}
+                </Text>
+              </View>
+            </View>
+            <Pressable onPress={() => navigation.navigate('AccountSelector')} hitSlop={8} role="button">
+              <Text style={styles.accountChange}>Change</Text>
+            </Pressable>
+          </View>
+          {errors.account ? <Text style={styles.accountError}>{errors.account}</Text> : null}
 
           {/* Invoice Attachment */}
           <View style={styles.invoiceSection}>
@@ -459,6 +499,43 @@ const styles = StyleSheet.create({
     fontSize: FONTS.sizes.xs,
     color: COLORS.textSecondary,
     maxWidth: 180,
+  },
+  accountCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  accountLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  accountLabel: {
+    fontSize: FONTS.sizes.xs,
+    color: COLORS.textSecondary,
+  },
+  accountValue: {
+    fontSize: FONTS.sizes.sm,
+    color: COLORS.text,
+    fontWeight: FONTS.weights.semiBold,
+  },
+  accountChange: {
+    fontSize: FONTS.sizes.sm,
+    color: COLORS.primary,
+    fontWeight: FONTS.weights.semiBold,
+  },
+  accountError: {
+    fontSize: FONTS.sizes.sm,
+    color: COLORS.danger,
+    marginTop: -10,
+    marginBottom: 10,
   },
   recurringNote: {
     flexDirection: 'row',

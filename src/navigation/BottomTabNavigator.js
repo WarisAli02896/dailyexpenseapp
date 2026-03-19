@@ -4,24 +4,22 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from '../screens/home/HomeScreen';
-import EarningListScreen from '../screens/earning/EarningListScreen';
-import ExpenseListScreen from '../screens/expense/ExpenseListScreen';
-import BillListScreen from '../screens/bills/BillListScreen';
+import DueAmountScreen from '../screens/due/DueAmountScreen';
 import AccountsScreen from '../screens/accounts/AccountsScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
 import { logoutUser } from '../services/authService';
 import { showAlert, showConfirm } from '../utils/alertUtils';
+import { AUTH_MESSAGES } from '../messages/authMessages';
+import { HeaderTitleWithAccount } from '../components/common';
 
 const Tab = createBottomTabNavigator();
 
 const getTabIcon = (routeName, focused) => {
   const icons = {
     Home: focused ? 'home' : 'home-outline',
-    Earnings: focused ? 'trending-up' : 'trending-up-outline',
-    Expenses: focused ? 'wallet' : 'wallet-outline',
-    Bills: focused ? 'flash' : 'flash-outline',
+    DueAmount: focused ? 'receipt' : 'receipt-outline',
     Accounts: focused ? 'people' : 'people-outline',
     Settings: focused ? 'settings' : 'settings-outline',
   };
@@ -43,7 +41,7 @@ const BottomTabNavigator = () => {
           showAlert('Error', result.message);
         }
       } catch (error) {
-        showAlert('Error', 'Logout failed. Please try again.');
+        showAlert('Error', AUTH_MESSAGES.LOGOUT_FAILED);
       }
     });
   };
@@ -73,8 +71,8 @@ const BottomTabNavigator = () => {
         },
         headerStyle: { backgroundColor: COLORS.primary },
         headerTintColor: COLORS.textWhite,
-        headerTitleStyle: { fontWeight: '600' },
         headerTitleAlign: 'center',
+        headerTitle: ({ children }) => <HeaderTitleWithAccount title={children} />,
         headerRight: () => (
           <Pressable
             onPress={handleLogout}
@@ -88,9 +86,7 @@ const BottomTabNavigator = () => {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Earnings" component={EarningListScreen} />
-      <Tab.Screen name="Expenses" component={ExpenseListScreen} />
-      <Tab.Screen name="Bills" component={BillListScreen} />
+      <Tab.Screen name="DueAmount" component={DueAmountScreen} options={{ title: 'Due Amount' }} />
       <Tab.Screen name="Accounts" component={AccountsScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>

@@ -1,4 +1,5 @@
 import { getDBConnection } from './database';
+import { PERSON_MESSAGES } from '../../messages/personMessages';
 
 export const addPerson = async (userId, name) => {
   try {
@@ -10,7 +11,7 @@ export const addPerson = async (userId, name) => {
     return { success: true, data: { id: result.lastInsertRowId, name: name.trim() } };
   } catch (error) {
     console.error('Add Person Error:', error);
-    return { success: false, message: 'Failed to add person.' };
+    return { success: false, message: PERSON_MESSAGES.ADD_FAILED };
   }
 };
 
@@ -18,7 +19,9 @@ export const getPersons = async (userId) => {
   try {
     const db = await getDBConnection();
     const persons = await db.getAllAsync(
-      `SELECT p.*, COALESCE(SUM(e.amount), 0) as total_invested, COUNT(e.id) as entry_count
+      `SELECT p.*,
+              COALESCE(SUM(CASE WHEN e.type = 'earning' THEN e.amount ELSE -e.amount END), 0) as total_invested,
+              COUNT(e.id) as entry_count
        FROM persons p
        LEFT JOIN entries e ON e.person_id = p.id AND e.show_in_account = 1
        WHERE p.user_id = ?
@@ -37,7 +40,10 @@ export const getPersonEntries = async (personId) => {
   try {
     const db = await getDBConnection();
     const entries = await db.getAllAsync(
-      `SELECT * FROM entries WHERE person_id = ? AND show_in_account = 1 ORDER BY date DESC, created_at DESC`,
+      `SELECT e.*
+       FROM entries e
+       WHERE e.person_id = ? AND e.show_in_account = 1
+       ORDER BY e.date DESC, e.created_at DESC`,
       [personId]
     );
     return { success: true, data: entries };
@@ -57,26 +63,26 @@ export const deletePerson = async (personId) => {
     );
 
     if (!person) {
-      return { success: false, message: 'Account not found.' };
+      return { success: false, message: PERSON_MESSAGES.ACCOUNT_NOT_FOUND };
     }
 
     if (person.is_default === 1) {
-      return { success: false, message: 'Default account cannot be deleted.' };
+      return { success: false, message: PERSON_MESSAGES.DEFAULT_DELETE_BLOCKED };
     }
 
     if (person.is_locked === 1) {
-      return { success: false, message: 'Locked account cannot be deleted.' };
+      return { success: false, message: PERSON_MESSAGES.LOCKED_DELETE_BLOCKED };
     }
 
     if (person.is_active === 1) {
-      return { success: false, message: 'Active account cannot be deleted. Set another account active first.' };
+      return { success: false, message: PERSON_MESSAGES.ACTIVE_DELETE_BLOCKED };
     }
 
     await db.runAsync('DELETE FROM persons WHERE id = ?', [personId]);
     return { success: true };
   } catch (error) {
     console.error('Delete Person Error:', error);
-    return { success: false, message: 'Failed to delete person.' };
+    return { success: false, message: PERSON_MESSAGES.DELETE_FAILED };
   }
 };
 
@@ -89,11 +95,11 @@ export const setPersonLock = async (personId, locked) => {
     );
 
     if (!person) {
-      return { success: false, message: 'Account not found.' };
+      return { success: false, message: PERSON_MESSAGES.ACCOUNT_NOT_FOUND };
     }
 
     if (person.is_default === 1 && !locked) {
-      return { success: false, message: 'Main account cannot be unlocked.' };
+      return { success: false, message: PERSON_MESSAGES.MAIN_UNLOCK_BLOCKED };
     }
 
     await db.runAsync(
@@ -104,7 +110,7 @@ export const setPersonLock = async (personId, locked) => {
     return { success: true };
   } catch (error) {
     console.error('Set Person Lock Error:', error);
-    return { success: false, message: 'Failed to update account lock.' };
+    return { success: false, message: PERSON_MESSAGES.LOCK_UPDATE_FAILED };
   }
 };
 
@@ -117,7 +123,7 @@ export const setActivePerson = async (userId, personId) => {
     );
 
     if (!person) {
-      return { success: false, message: 'Account not found.' };
+      return { success: false, message: PERSON_MESSAGES.ACCOUNT_NOT_FOUND };
     }
 
     await db.runAsync('UPDATE persons SET is_active = 0 WHERE user_id = ?', [userId]);
@@ -125,7 +131,7 @@ export const setActivePerson = async (userId, personId) => {
     return { success: true };
   } catch (error) {
     console.error('Set Active Person Error:', error);
-    return { success: false, message: 'Failed to set active account.' };
+    return { success: false, message: PERSON_MESSAGES.ACTIVE_SET_FAILED };
   }
 };
 

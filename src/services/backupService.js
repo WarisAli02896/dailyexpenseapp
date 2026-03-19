@@ -1,22 +1,26 @@
 import { getDBConnection } from './database';
 import { saveUserSession } from './storageService';
+import { BACKUP_MESSAGES } from '../../messages/backupMessages';
 
-const BACKUP_SCHEMA_VERSION = 1;
+const BACKUP_SCHEMA_VERSION = 2;
 
 const parseArray = (value) => (Array.isArray(value) ? value : []);
 const isValidPin = (pin) => /^\d{6}$/.test(String(pin || ''));
 
 const restorePayloadToUser = async (db, userId, payload) => {
   const persons = parseArray(payload.persons);
+  const sources = parseArray(payload.sources);
   const entries = parseArray(payload.entries);
   const budgets = parseArray(payload.budgets);
   const recurringTemplates = parseArray(payload.recurringTemplates);
   const personIdMap = new Map();
+  const sourceIdMap = new Map();
 
   await db.runAsync('DELETE FROM entries WHERE user_id = ?', [userId]);
   await db.runAsync('DELETE FROM budgets WHERE user_id = ?', [userId]);
   await db.runAsync('DELETE FROM recurring_templates WHERE user_id = ?', [userId]);
   await db.runAsync('DELETE FROM persons WHERE user_id = ?', [userId]);
+  await db.runAsync('DELETE FROM sources WHERE user_id = ?', [userId]);
 
   for (const person of persons) {
     const result = await db.runAsync(
@@ -42,13 +46,29 @@ const restorePayloadToUser = async (db, userId, payload) => {
     );
   }
 
+  for (const source of sources) {
+    const result = await db.runAsync(
+      `INSERT INTO sources (user_id, name, is_default, is_locked, is_active, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        userId,
+        source.name,
+        Number(source.is_default || 0),
+        Number(source.is_locked || 0),
+        Number(source.is_active || 0),
+        source.created_at || new Date().toISOString(),
+      ]
+    );
+    sourceIdMap.set(source.id, result.lastInsertRowId);
+  }
+
   for (const entry of entries) {
     await db.runAsync(
       `INSERT INTO entries (
         user_id, type, entry_type, title, amount, company_name, category_id, date, notes,
-        is_recurring, invoice_uri, invoice_type, invoice_uri_2, invoice_type_2, person_id,
+        is_recurring, invoice_uri, invoice_type, invoice_uri_2, invoice_type_2, person_id, source_id,
         show_in_account, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         entry.type,
@@ -65,6 +85,7 @@ const restorePayloadToUser = async (db, userId, payload) => {
         entry.invoice_uri_2 ?? null,
         entry.invoice_type_2 ?? null,
         personIdMap.get(entry.person_id) ?? null,
+        sourceIdMap.get(entry.source_id) ?? null,
         Number(entry.show_in_account ?? 1),
         entry.created_at || new Date().toISOString(),
       ]
@@ -90,7 +111,8 @@ const restorePayloadToUser = async (db, userId, payload) => {
     await db.runAsync(
       `INSERT INTO recurring_templates (
         user_id, type, entry_type, title, amount, company_name, person_id, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        , source_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         template.type,
@@ -101,12 +123,14 @@ const restorePayloadToUser = async (db, userId, payload) => {
         personIdMap.get(template.person_id) ?? null,
         template.created_at || new Date().toISOString(),
         template.updated_at || new Date().toISOString(),
+        sourceIdMap.get(template.source_id) ?? null,
       ]
     );
   }
 
   return {
     persons: persons.length,
+    sources: sources.length,
     entries: entries.length,
     budgets: budgets.length,
     recurringTemplates: recurringTemplates.length,
@@ -122,7 +146,7 @@ export const exportUserBackup = async (userId) => {
     );
 
     if (!user) {
-      return { success: false, message: 'User not found.' };
+      return { success: false, message: BACKUP_MESSAGES.USER_NOT_FOUND };
     }
 
     const persons = await db.getAllAsync(
@@ -133,10 +157,18 @@ export const exportUserBackup = async (userId) => {
       [userId]
     );
 
+    const sources = await db.getAllAsync(
+      `SELECT id, name, is_default, is_locked, is_active, created_at
+       FROM sources
+       WHERE user_id = ?
+       ORDER BY id ASC`,
+      [userId]
+    );
+
     const entries = await db.getAllAsync(
       `SELECT id, type, entry_type, title, amount, company_name, category_id, date, notes,
               is_recurring, invoice_uri, invoice_type, invoice_uri_2, invoice_type_2,
-              person_id, show_in_account, created_at
+              person_id, source_id, show_in_account, created_at
        FROM entries
        WHERE user_id = ?
        ORDER BY id ASC`,
@@ -152,7 +184,7 @@ export const exportUserBackup = async (userId) => {
     );
 
     const recurringTemplates = await db.getAllAsync(
-      `SELECT id, type, entry_type, title, amount, company_name, person_id, created_at, updated_at
+      `SELECT id, type, entry_type, title, amount, company_name, person_id, source_id, created_at, updated_at
        FROM recurring_templates
        WHERE user_id = ?
        ORDER BY id ASC`,
@@ -172,6 +204,7 @@ export const exportUserBackup = async (userId) => {
           pin: user.pin,
         },
         persons,
+        sources,
         entries,
         budgets,
         recurringTemplates,
@@ -179,7 +212,7 @@ export const exportUserBackup = async (userId) => {
     };
   } catch (error) {
     console.error('Export Backup Error:', error);
-    return { success: false, message: 'Failed to export backup data.' };
+    return { success: false, message: BACKUP_MESSAGES.EXPORT_FAILED };
   }
 };
 
@@ -231,7 +264,7 @@ export const restoreUserBackup = async (userId, backupData) => {
     }
 
     console.error('Restore Backup Error:', error);
-    return { success: false, message: 'Failed to restore backup data.' };
+    return { success: false, message: BACKUP_MESSAGES.RESTORE_DATA_FAILED };
   }
 };
 
@@ -242,13 +275,13 @@ export const restoreBackupAsNewUser = async (backupData) => {
   const pin = String(payload.user?.pin || '').trim();
 
   if (!username) {
-    return { success: false, message: 'Backup user information is missing.' };
+    return { success: false, message: BACKUP_MESSAGES.BACKUP_USER_MISSING };
   }
 
   if (!isValidPin(pin)) {
     return {
       success: false,
-      message: 'This backup was created with an older app version. Please create account manually once.',
+      message: BACKUP_MESSAGES.RESTORE_OLD_FORMAT,
     };
   }
 
@@ -260,7 +293,7 @@ export const restoreBackupAsNewUser = async (backupData) => {
     );
 
     if (existing) {
-      return { success: false, message: 'This username already exists on this device.' };
+      return { success: false, message: BACKUP_MESSAGES.RESTORE_USER_EXISTS };
     }
 
     await db.execAsync('BEGIN TRANSACTION;');
@@ -289,6 +322,6 @@ export const restoreBackupAsNewUser = async (backupData) => {
       console.error('Rollback Error:', rollbackError);
     }
     console.error('Restore New User Backup Error:', error);
-    return { success: false, message: 'Failed to restore backup data.' };
+    return { success: false, message: BACKUP_MESSAGES.RESTORE_DATA_FAILED };
   }
 };

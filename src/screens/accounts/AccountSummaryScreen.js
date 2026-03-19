@@ -21,6 +21,7 @@ import { COMMON_MESSAGES } from '../../messages/commonMessages';
 import { exportSummaryReportPdf } from '../../services/pdfReportService';
 
 const INVEST_COLOR = '#7C4DFF';
+const formatSignedRupee = (value) => `${value >= 0 ? '+' : '-'} Rs. ${formatAmount(Math.abs(value || 0))}`;
 
 const AccountSummaryScreen = ({ route, navigation }) => {
   const { person } = route.params;
@@ -60,12 +61,15 @@ const AccountSummaryScreen = ({ route, navigation }) => {
     }
   };
 
-  const totalInvested = entries.reduce((sum, e) => sum + (e.amount || 0), 0);
+  const totalInvested = entries.reduce(
+    (sum, e) => sum + ((e.type === 'earning' ? 1 : -1) * (e.amount || 0)),
+    0
+  );
 
   const handleDelete = (entry) => {
     showConfirm(
       'Delete Entry',
-      `Remove this investment of Rs. ${formatAmount(entry.amount)}?`,
+      `Remove this entry of Rs. ${formatAmount(entry.amount)}?`,
       async () => {
         const result = await deleteEntry(entry.id);
         if (result.success) {
@@ -93,11 +97,11 @@ const AccountSummaryScreen = ({ route, navigation }) => {
           `Total entries: ${entries.length}`,
         ],
         totals: [
-          { label: 'Total Invested', value: `Rs. ${formatAmount(totalInvested)}` },
+          { label: 'Total Invested', value: formatSignedRupee(totalInvested) },
         ],
         rows: entries.map((entry) => ({
           label: `${entry.title} (${formatEntryDate(entry.date)})`,
-          value: `Rs. ${formatAmount(entry.amount || 0)}`,
+          value: `${entry.type === 'earning' ? '+' : '-'} Rs. ${formatAmount(entry.amount || 0)}`,
         })),
         fileName: `account-${person.name}-${Date.now()}`,
       });
@@ -117,6 +121,8 @@ const AccountSummaryScreen = ({ route, navigation }) => {
     const dateLabel = formatEntryDate(item.date);
     const timeLabel = formatTime12h(item.date);
     const hasInvoice = !!item.invoice_uri;
+    const isEarning = item.type === 'earning';
+    const signedAmount = `${isEarning ? '+' : '-'} Rs. ${formatAmount(item.amount)}`;
 
     return (
       <Pressable
@@ -125,7 +131,11 @@ const AccountSummaryScreen = ({ route, navigation }) => {
         role="button"
       >
         <View style={styles.entryIcon}>
-          <Ionicons name="trending-up" size={20} color={INVEST_COLOR} />
+          <Ionicons
+            name={isEarning ? 'arrow-down-circle' : 'arrow-up-circle'}
+            size={20}
+            color={isEarning ? COLORS.income : COLORS.expense}
+          />
         </View>
         <View style={styles.entryInfo}>
           <Text style={styles.entryTitle} numberOfLines={1}>{item.title}</Text>
@@ -138,7 +148,10 @@ const AccountSummaryScreen = ({ route, navigation }) => {
           )}
         </View>
         <View style={styles.entryRight}>
-          <Text style={styles.entryAmount}>Rs. {formatAmount(item.amount)}</Text>
+          <Text style={[
+            styles.entryAmount,
+            { color: isEarning ? COLORS.income : COLORS.expense },
+          ]}>{signedAmount}</Text>
           <Pressable
             style={({ pressed }) => [styles.entryDeleteBtn, pressed && { opacity: 0.5 }]}
             onPress={(e) => { e.stopPropagation(); handleDelete(item); }}
@@ -172,7 +185,10 @@ const AccountSummaryScreen = ({ route, navigation }) => {
       {/* Total Amount Card */}
       <View style={styles.totalCard}>
         <Text style={styles.totalLabel}>Total Invested</Text>
-        <Text style={styles.totalAmount}>Rs. {formatAmount(totalInvested)}</Text>
+        <Text style={[
+          styles.totalAmount,
+          { color: totalInvested >= 0 ? COLORS.income : COLORS.expense },
+        ]}>{formatSignedRupee(totalInvested)}</Text>
       </View>
 
       {/* Entries List */}

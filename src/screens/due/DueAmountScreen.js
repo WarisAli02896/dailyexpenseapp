@@ -1,0 +1,395 @@
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, RefreshControl, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import DueGroupedEntryRow from '../../components/due/DueGroupedEntryRow';
+import { COLORS } from '../../constants/colors';
+import { FONTS } from '../../constants/fonts';
+import { useAuth } from '../../hooks/useAuth';
+import { getDueAccountEntries, getDueAccountTotals, deleteEntry, repayDueEntry } from '../../services/entryService';
+import { formatAmount } from '../../utils/currencyUtils';
+import { showAlert, showConfirm } from '../../utils/alertUtils';
+import { DUE_MESSAGES } from '../../messages/dueMessages';
+
+const DueAmountScreen = ({ navigation }) => {
+  const { user } = useAuth();
+  const [entries, setEntries] = useState([]);
+  const [accountTotals, setAccountTotals] = useState([]);
+  const [totalDue, setTotalDue] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState('all');
+
+  const groupedEntries = useMemo(() => {
+    const dueEntries = entries.filter((e) => e.entry_type === 'due');
+    const repaymentEntries = entries.filter((e) => e.entry_type === 'repayment');
+    const groupMap = new Map();
+
+    dueEntries.forEach((due) => {
+      groupMap.set(due.id, { key: `due-${due.id}`, due, repayments: [] });
+    });
+
+    repaymentEntries.forEach((rep) => {
+      const refId = rep.repayment_for_entry_id;
+      if (refId && groupMap.has(refId)) {
+        groupMap.get(refId).repayments.push(rep);
+      } else {
+        // Backward compatibility for old repayment records created before reference-id support.
+        // Try to infer matching due entry using account pair + amount + nearest prior date.
+        const candidates = Array.from(groupMap.values()).filter((g) => {
+          if (!g.due) return false;
+          const sameFrom = String(g.due.person_id || '') === String(rep.person_id || '');
+          const sameTo = String(g.due.due_to_person_id || '') === String(rep.due_to_person_id || '');
+          const sameAmount = Number(g.due.amount || 0) === Number(rep.amount || 0);
+          const dueDate = new Date(g.due.date).getTime();
+          const repayDate = new Date(rep.date).getTime();
+          const dueBeforeRepay = Number.isFinite(dueDate) && Number.isFinite(repayDate) ? dueDate <= repayDate : true;
+          return sameFrom && sameTo && sameAmount && dueBeforeRepay;
+        });
+
+        if (candidates.length > 0) {
+          candidates.sort((a, b) => {
+            const aDiff = Math.abs(new Date(rep.date).getTime() - new Date(a.due.date).getTime());
+            const bDiff = Math.abs(new Date(rep.date).getTime() - new Date(b.due.date).getTime());
+            return aDiff - bDiff;
+          });
+          candidates[0].repayments.push(rep);
+        }
+      }
+    });
+
+    const groups = Array.from(groupMap.values()).map((g) => ({
+      ...g,
+      repayments: g.repayments.sort((a, b) => new Date(b.date) - new Date(a.date)),
+    }));
+
+    groups.sort((a, b) => {
+      const aDate = new Date((a.due && (a.due.due_date || a.due.date)) || a.repayments[0]?.date || 0);
+      const bDate = new Date((b.due && (b.due.due_date || b.due.date)) || b.repayments[0]?.date || 0);
+      return bDate - aDate;
+    });
+
+    return groups;
+  }, [entries]);
+
+  const loadData = useCallback(async () => {
+    if (!user) return;
+    const [entriesResult, totalsResult] = await Promise.all([
+      getDueAccountEntries(user.id),
+      getDueAccountTotals(user.id),
+    ]);
+    if (entriesResult.success) {
+      setEntries(entriesResult.data);
+      setTotalDue(entriesResult.total);
+      if (totalsResult.success) {
+        setAccountTotals(totalsResult.data);
+      }
+    } else {
+      showAlert('Error', DUE_MESSAGES.FETCH_FAILED);
+    }
+  }, [user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  const onRefresh = useCallback(async () => {
+    if (!user) return;
+    setRefreshing(true);
+    try {
+      const [entriesResult, totalsResult] = await Promise.all([
+        getDueAccountEntries(user.id),
+        getDueAccountTotals(user.id),
+      ]);
+      if (entriesResult.success) {
+        setEntries(entriesResult.data);
+        setTotalDue(entriesResult.total);
+        if (totalsResult.success) {
+          setAccountTotals(totalsResult.data);
+        }
+        showAlert('Success', DUE_MESSAGES.REFRESH_SUCCESS);
+      } else {
+        showAlert('Error', DUE_MESSAGES.REFRESH_FAILED);
+      }
+    } catch {
+      showAlert('Error', DUE_MESSAGES.REFRESH_FAILED);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [user]);
+
+  const handleDeleteGroup = (group) => {
+    if (!group?.due) return;
+    showConfirm('Delete Due Entry', `Delete "${group.due.title}"?`, async () => {
+      const idsToDelete = [group.due.id, ...group.repayments.map((r) => r.id)];
+      let failed = false;
+      for (const id of idsToDelete) {
+        const result = await deleteEntry(id);
+        if (!result.success) {
+          failed = true;
+          break;
+        }
+      }
+      if (!failed) {
+        showAlert('Success', DUE_MESSAGES.DELETE_SUCCESS);
+        loadData();
+      } else {
+        showAlert('Error', DUE_MESSAGES.DELETE_FAILED);
+      }
+    });
+  };
+
+  const handleRepay = (entry) => {
+    showConfirm('Repay Due Amount', DUE_MESSAGES.REPAY_CONFIRM, async () => {
+      const result = await repayDueEntry({ userId: user.id, dueEntryId: entry.id });
+      if (result.success) {
+        showAlert('Success', DUE_MESSAGES.REPAY_SUCCESS);
+        loadData();
+      } else {
+        showAlert('Error', result.message || DUE_MESSAGES.REPAY_FAILED);
+      }
+    });
+  };
+
+  const renderAllEntriesGroup = ({ item }) => {
+    const due = item.due;
+    if (!due) return null;
+    const latestRepayment = item.repayments.length > 0 ? item.repayments[0] : null;
+
+    return (
+      <DueGroupedEntryRow
+        due={due}
+        latestRepayment={latestRepayment}
+        onPress={() => navigation.navigate('EntryDetail', { entry: due })}
+        onDelete={() => handleDeleteGroup(item)}
+        onRepay={() => handleRepay(due)}
+      />
+    );
+  };
+
+  const renderAccountRow = ({ item }) => (
+    <Pressable
+      style={({ pressed }) => [styles.accountRow, pressed && { opacity: 0.86 }]}
+      onPress={() =>
+        navigation.navigate('DueAccountDetail', {
+          personId: item.person_id,
+          personName: item.person_name,
+        })
+      }
+      role="button"
+    >
+      <View style={styles.accountAvatar}>
+        <Text style={styles.accountAvatarText}>{(item.person_name || '?').charAt(0).toUpperCase()}</Text>
+      </View>
+      <View style={styles.accountInfo}>
+        <Text style={styles.accountName}>{item.person_name}</Text>
+        <Text style={styles.accountMeta}>{item.due_count || 0} Due · {item.repaid_count || 0} Repaid · Tap for details</Text>
+      </View>
+      <Text style={[styles.accountAmount, { color: Number(item.total_due || 0) >= 0 ? COLORS.expense : COLORS.income }]}>
+        {Number(item.total_due || 0) >= 0 ? '' : '-'}Rs. {formatAmount(Math.abs(Number(item.total_due || 0)))}
+      </Text>
+      <Ionicons name="chevron-forward" size={18} color={COLORS.textLight} style={styles.accountArrow} />
+    </Pressable>
+  );
+
+  const ListHeader = () => (
+    <View style={styles.headerWrap}>
+      <View style={styles.summaryCard}>
+        <View style={styles.summaryIcon}>
+          <Ionicons name="receipt-outline" size={26} color={COLORS.warning} />
+        </View>
+        <View>
+          <Text style={styles.summaryLabel}>Total Due Amount</Text>
+          <Text style={styles.summaryAmount}>Rs. {formatAmount(totalDue)}</Text>
+        </View>
+        <Text style={styles.summaryCount}>{entries.length} Entries</Text>
+      </View>
+        <View style={styles.tabRow}>
+          <Pressable
+            style={[styles.tabBtn, activeTab === 'all' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('all')}
+            role="button"
+          >
+            <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>All Entries</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tabBtn, activeTab === 'accounts' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('accounts')}
+            role="button"
+          >
+            <Text style={[styles.tabText, activeTab === 'accounts' && styles.tabTextActive]}>Accounts</Text>
+          </Pressable>
+        </View>
+    </View>
+  );
+
+  const ListEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="receipt-outline" size={60} color={COLORS.textLight} />
+      <Text style={styles.emptyTitle}>{DUE_MESSAGES.EMPTY_TITLE}</Text>
+      <Text style={styles.emptyText}>{DUE_MESSAGES.EMPTY_SUBTITLE}</Text>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={activeTab === 'all' ? groupedEntries : accountTotals}
+        renderItem={activeTab === 'all' ? renderAllEntriesGroup : renderAccountRow}
+        keyExtractor={(item) => String(activeTab === 'all' ? item.key : item.person_id)}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={ListEmpty}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[COLORS.warning]}
+            tintColor={COLORS.warning}
+          />
+        }
+      />
+      <Pressable
+        style={({ pressed }) => [styles.fab, pressed && { opacity: 0.85 }]}
+        onPress={() => navigation.navigate('AddDue')}
+        role="button"
+      >
+        <Ionicons name="add" size={24} color={COLORS.textWhite} />
+      </Pressable>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.background },
+  listContent: { padding: 20, paddingTop: 8, paddingBottom: 90 },
+  headerWrap: { marginBottom: 16 },
+  tabRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tabBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    backgroundColor: COLORS.surface,
+    paddingVertical: 10,
+  },
+  tabBtnActive: {
+    borderColor: COLORS.warning,
+    backgroundColor: COLORS.warning + '15',
+  },
+  tabText: {
+    color: COLORS.textSecondary,
+    fontWeight: FONTS.weights.semiBold,
+    fontSize: FONTS.sizes.sm,
+  },
+  tabTextActive: {
+    color: COLORS.warning,
+  },
+  accountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+  },
+  accountAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.warning + '26',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  accountAvatarText: {
+    color: COLORS.warning,
+    fontWeight: FONTS.weights.bold,
+    fontSize: FONTS.sizes.base,
+  },
+  accountInfo: { flex: 1 },
+  accountName: {
+    color: COLORS.text,
+    fontWeight: FONTS.weights.semiBold,
+    fontSize: FONTS.sizes.base,
+  },
+  accountMeta: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.sizes.xs,
+    marginTop: 2,
+  },
+  accountAmount: {
+    fontWeight: FONTS.weights.bold,
+    fontSize: FONTS.sizes.md,
+  },
+  accountArrow: {
+    marginLeft: 8,
+  },
+  summaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.warning + '14',
+    borderRadius: 16,
+    padding: 18,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: COLORS.warning + '25',
+  },
+  summaryIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: COLORS.warning + '26',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  summaryLabel: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginBottom: 2 },
+  summaryAmount: { fontSize: FONTS.sizes.xl, fontWeight: FONTS.weights.bold, color: COLORS.warning },
+  summaryCount: {
+    marginLeft: 'auto',
+    fontSize: FONTS.sizes.sm,
+    color: COLORS.textSecondary,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  emptyContainer: { alignItems: 'center', paddingVertical: 70 },
+  emptyTitle: {
+    fontSize: FONTS.sizes.lg,
+    fontWeight: FONTS.weights.semiBold,
+    color: COLORS.textSecondary,
+    marginTop: 14,
+  },
+  emptyText: {
+    fontSize: FONTS.sizes.md,
+    color: COLORS.textLight,
+    marginTop: 6,
+    textAlign: 'center',
+    paddingHorizontal: 12,
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 22,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: COLORS.warning,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
+export default DueAmountScreen;

@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Platform } from 'react-native';
+import { COMMON_MESSAGES } from '../../messages/commonMessages';
 
 const REPORTS_DIR = `${FileSystem.documentDirectory}reports/`;
 
@@ -164,7 +165,7 @@ export const exportSummaryReportPdf = async ({
     const printResult = await Print.printToFileAsync({ html });
 
     if (Platform.OS === 'web') {
-      return { success: true, uri: printResult.uri, message: 'PDF generated.' };
+      return { success: true, uri: printResult.uri, message: COMMON_MESSAGES.PDF_EXPORT_SUCCESS };
     }
 
     await ensureReportsDir();
@@ -179,7 +180,7 @@ export const exportSummaryReportPdf = async ({
         dialogTitle: title,
         UTI: 'com.adobe.pdf',
       });
-      return { success: true, uri: finalUri, message: 'PDF generated and ready to share.' };
+      return { success: true, uri: finalUri, message: COMMON_MESSAGES.PDF_EXPORT_SUCCESS };
     }
 
     // Fallback for devices where share sheet is not available.
@@ -187,7 +188,7 @@ export const exportSummaryReportPdf = async ({
     return {
       success: true,
       uri: finalUri,
-      message: 'PDF generated. Opened print/share fallback.',
+      message: COMMON_MESSAGES.PDF_EXPORT_SUCCESS,
     };
   } catch (error) {
     const message = error?.message || 'Unknown PDF export error';

@@ -1,4 +1,5 @@
 import { DRIVE_APPDATA_SCOPE, DRIVE_BACKUP_FILE_NAME } from '../constants/googleDrive';
+import { BACKUP_MESSAGES } from '../../messages/backupMessages';
 
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
 const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3';
@@ -92,7 +93,7 @@ export const downloadLatestBackupFromDrive = async (accessToken) => {
     const latest = files[0];
 
     if (!latest?.id) {
-      return { success: false, code: 'NO_BACKUP', message: 'No backup found.' };
+      return { success: false, code: 'NO_BACKUP', message: BACKUP_MESSAGES.NO_BACKUP_FOUND };
     }
 
     const response = await authorizedRequest(

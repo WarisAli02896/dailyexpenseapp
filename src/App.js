@@ -3,7 +3,6 @@ import { StatusBar } from 'expo-status-bar';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './context/AuthContext';
-import { ExpenseProvider } from './context/ExpenseContext';
 import RootNavigator from './navigation';
 import SnackbarHost from './components/common/SnackbarHost';
 import { initializeDatabase } from './services/database';
@@ -48,11 +47,9 @@ const App = () => {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <ExpenseProvider>
-          <StatusBar style="auto" />
-          <RootNavigator />
-          <SnackbarHost />
-        </ExpenseProvider>
+        <StatusBar style="auto" />
+        <RootNavigator />
+        <SnackbarHost />
       </AuthProvider>
     </SafeAreaProvider>
   );

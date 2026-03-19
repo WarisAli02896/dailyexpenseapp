@@ -1,0 +1,878 @@
+{
+  "project": "DailyExpenseShort",
+  "features": [
+    {
+      "featureName": "User Registration",
+      "version": "1.0",
+      "childFeatures": [
+        {
+          "featureName": "Register account using username and PIN",
+          "version": "1.1",
+          "screensIncluded": [
+            "RegisterScreen"
+          ],
+          "functionalities": [
+            "Capture username and PIN",
+            "Create user in database",
+            "Show loading state",
+            "Show success alert",
+            "Show failure alert"
+          ]
+        },
+        {
+          "featureName": "Validate registration inputs",
+          "version": "1.2",
+          "screensIncluded": [
+            "RegisterScreen"
+          ],
+          "functionalities": [
+            "Validate username required",
+            "Validate PIN format",
+            "Block invalid submit",
+            "Show input-level errors",
+            "Clear errors on change"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "User Login And Session",
+      "version": "2.0",
+      "childFeatures": [
+        {
+          "featureName": "Login using username and PIN",
+          "version": "2.1",
+          "screensIncluded": [
+            "LoginScreen"
+          ],
+          "functionalities": [
+            "Capture login inputs",
+            "Validate credentials",
+            "Start session",
+            "Show loading state",
+            "Show invalid login message"
+          ]
+        },
+        {
+          "featureName": "Logout from header action",
+          "version": "2.2",
+          "screensIncluded": [
+            "BottomTabNavigator",
+            "AppNavigator"
+          ],
+          "functionalities": [
+            "Show logout icon",
+            "Confirm logout",
+            "Clear session data",
+            "Navigate to login",
+            "Handle logout error"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Expense Management",
+      "version": "3.0",
+      "childFeatures": [
+        {
+          "featureName": "Add expense with category and amount",
+          "version": "3.1",
+          "screensIncluded": [
+            "AddExpenseScreen"
+          ],
+          "functionalities": [
+            "Capture expense title/category/amount",
+            "Validate amount > 0",
+            "Save spending entry",
+            "Attach selected account",
+            "Show success or error"
+          ]
+        },
+        {
+          "featureName": "Attach receipt to expense",
+          "version": "3.2",
+          "screensIncluded": [
+            "AddExpenseScreen"
+          ],
+          "functionalities": [
+            "Open attachment picker",
+            "Preview selected file",
+            "Persist invoice URI/type",
+            "Remove selected file",
+            "Handle save errors"
+          ]
+        },
+        {
+          "featureName": "View and refresh expense list",
+          "version": "3.3",
+          "screensIncluded": [
+            "ExpenseListScreen"
+          ],
+          "functionalities": [
+            "Load entries by month",
+            "Show total spendings",
+            "Pull to refresh",
+            "Show empty state",
+            "Show fetch errors"
+          ]
+        },
+        {
+          "featureName": "Delete expense from list",
+          "version": "3.4",
+          "screensIncluded": [
+            "ExpenseListScreen"
+          ],
+          "functionalities": [
+            "Show delete action",
+            "Ask confirmation",
+            "Delete selected entry",
+            "Refresh after delete",
+            "Show deletion error"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Earning Management",
+      "version": "4.0",
+      "childFeatures": [
+        {
+          "featureName": "Add earning entry",
+          "version": "4.1",
+          "screensIncluded": [
+            "EarningFormScreen"
+          ],
+          "functionalities": [
+            "Capture earning fields",
+            "Validate amount",
+            "Save earning record",
+            "Link active account",
+            "Show success or error"
+          ]
+        },
+        {
+          "featureName": "Attach receipt to earning",
+          "version": "4.2",
+          "screensIncluded": [
+            "EarningFormScreen"
+          ],
+          "functionalities": [
+            "Pick receipt file",
+            "Preview attachment",
+            "Persist invoice metadata",
+            "Remove attachment",
+            "Handle file errors"
+          ]
+        },
+        {
+          "featureName": "View and refresh earning list",
+          "version": "4.3",
+          "screensIncluded": [
+            "EarningListScreen"
+          ],
+          "functionalities": [
+            "Load earnings by month",
+            "Show earning total",
+            "Pull to refresh",
+            "Show empty state",
+            "Show fetch error"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Salary Management",
+      "version": "5.0",
+      "childFeatures": [
+        {
+          "featureName": "Add salary entry",
+          "version": "5.1",
+          "screensIncluded": [
+            "SalaryFormScreen"
+          ],
+          "functionalities": [
+            "Capture company and amount",
+            "Save as salary type",
+            "Validate required inputs",
+            "Link active account",
+            "Show success or error"
+          ]
+        },
+        {
+          "featureName": "Attach receipt to salary",
+          "version": "5.2",
+          "screensIncluded": [
+            "SalaryFormScreen"
+          ],
+          "functionalities": [
+            "Pick salary attachment",
+            "Preview selected file",
+            "Persist invoice URI/type",
+            "Remove selected file",
+            "Handle file-save error"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Due Date Management",
+      "version": "6.0",
+      "childFeatures": [
+        {
+          "featureName": "Set due date in expense form",
+          "version": "6.1",
+          "screensIncluded": [
+            "AddExpenseScreen"
+          ],
+          "functionalities": [
+            "Enable due date toggle",
+            "Open calendar modal",
+            "Select due date",
+            "Validate date input",
+            "Save due date"
+          ]
+        },
+        {
+          "featureName": "Show due date in entry details",
+          "version": "6.2",
+          "screensIncluded": [
+            "EntryDetailScreen"
+          ],
+          "functionalities": [
+            "Render due date row",
+            "Hide row when null",
+            "Format date output",
+            "Show in view mode",
+            "Show in edit context"
+          ]
+        },
+        {
+          "featureName": "Use due date in expense display logic",
+          "version": "6.3",
+          "screensIncluded": [
+            "ExpenseListScreen",
+            "HomeScreen"
+          ],
+          "functionalities": [
+            "Prefer due date for display",
+            "Fallback to created date",
+            "Sort using effective date",
+            "Apply in summaries",
+            "Keep month carry logic aligned"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Due On Account Management",
+      "version": "7.0",
+      "childFeatures": [
+        {
+          "featureName": "Mark expense as due on account",
+          "version": "7.1",
+          "screensIncluded": [
+            "AddExpenseScreen"
+          ],
+          "functionalities": [
+            "Enable due-on-account toggle",
+            "Persist due-on-account flag",
+            "Keep independent of due date",
+            "Reset when toggle off",
+            "Drive due queries by flag"
+          ]
+        },
+        {
+          "featureName": "Select person for due-on-account entry",
+          "version": "7.2",
+          "screensIncluded": [
+            "AddExpenseScreen"
+          ],
+          "functionalities": [
+            "Require person selection",
+            "Open account selector",
+            "Show selected person",
+            "Save person ID",
+            "Show missing-account validation"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Due Amount Tracking",
+      "version": "8.0",
+      "childFeatures": [
+        {
+          "featureName": "Add due amount tab in bottom navbar",
+          "version": "8.1",
+          "screensIncluded": [
+            "BottomTabNavigator"
+          ],
+          "functionalities": [
+            "Register DueAmount tab",
+            "Show receipt icon",
+            "Show Due Amount label",
+            "Keep tab ordering",
+            "Open due screen on tap"
+          ]
+        },
+        {
+          "featureName": "Show due list with total summary",
+          "version": "8.2",
+          "screensIncluded": [
+            "DueAmountScreen"
+          ],
+          "functionalities": [
+            "Load due-on-account entries",
+            "Calculate total due",
+            "Render list rows",
+            "Support refresh",
+            "Show empty state"
+          ]
+        },
+        {
+          "featureName": "Delete entries from due list",
+          "version": "8.3",
+          "screensIncluded": [
+            "DueAmountScreen"
+          ],
+          "functionalities": [
+            "Show row delete action",
+            "Confirm delete",
+            "Delete entry",
+            "Refresh due totals",
+            "Show delete failure message"
+          ]
+        },
+        {
+          "featureName": "Mark due entry as repaid",
+          "version": "8.4",
+          "screensIncluded": [
+            "DueAmountScreen"
+          ],
+          "functionalities": [
+            "Show repay action in due row",
+            "Confirm before marking repaid",
+            "Create repayment earning entry",
+            "Unset due flag on original entry",
+            "Refresh due totals and list"
+          ]
+        },
+        {
+          "featureName": "Create separate due form with from and to accounts",
+          "version": "8.5",
+          "screensIncluded": [
+            "AddDueScreen",
+            "AppNavigator",
+            "HomeScreen",
+            "DueAmountScreen"
+          ],
+          "functionalities": [
+            "Open dedicated Add Due form",
+            "Default From account to active account",
+            "Capture To account separately",
+            "Capture due date independent of expense due date",
+            "Allow receipt attachment in due form"
+          ]
+        },
+        {
+          "featureName": "Show only from-account entry in dashboards for due flow",
+          "version": "8.6",
+          "screensIncluded": [
+            "HomeScreen",
+            "ExpenseListScreen",
+            "DueAmountScreen"
+          ],
+          "functionalities": [
+            "Save due entry only against From account",
+            "Avoid creating dashboard-visible To-side entry",
+            "Keep account summaries tied to From account",
+            "Show To account context only inside due tracking",
+            "Keep repay flow linked with original From account"
+          ]
+        },
+        {
+          "featureName": "Add all entries and accounts tabs in due screen",
+          "version": "8.7",
+          "screensIncluded": [
+            "DueAmountScreen"
+          ],
+          "functionalities": [
+            "Show All Entries tab with due and repayment entries",
+            "Show Accounts tab with account-wise due totals",
+            "Display due count and repaid count per account",
+            "Calculate account totals from due and repayment entries",
+            "Keep shared summary visible across tabs"
+          ]
+        },
+        {
+          "featureName": "Keep repaid entries visible with repaid label",
+          "version": "8.8",
+          "screensIncluded": [
+            "DueAmountScreen",
+            "entryService"
+          ],
+          "functionalities": [
+            "Do not remove due entry after repay action",
+            "Show repaid status label in due entries list",
+            "Show repayment records in all entries tab",
+            "Hide mark-repaid action for settled entries",
+            "Use net due summary after repayments"
+          ]
+        },
+        {
+          "featureName": "Link due and repayment by reference id and grouped rows",
+          "version": "8.9",
+          "screensIncluded": [
+            "DueAmountScreen",
+            "entryService",
+            "database"
+          ],
+          "functionalities": [
+            "Store repayment reference to original due entry id",
+            "Show due id on due row for verification",
+            "Show repayment reference id on repaid row",
+            "Render due and repaid as two rows inside one grouped card",
+            "Keep grouped view for easy cross verification"
+          ]
+        },
+        {
+          "featureName": "Use dedicated due grouped row component",
+          "version": "8.10",
+          "screensIncluded": [
+            "DueAmountScreen",
+            "DueGroupedEntryRow"
+          ],
+          "functionalities": [
+            "Replace generic entry row with due-specific grouped card",
+            "Render give and return sections in one double-height entry",
+            "Keep shared delete action for grouped due item",
+            "Keep single status label for pending or repaid",
+            "Show mark-repaid action only when pending"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Transfer Management",
+      "version": "9.0",
+      "childFeatures": [
+        {
+          "featureName": "Transfer amount between accounts",
+          "version": "9.1",
+          "screensIncluded": [
+            "TransferAmountScreen"
+          ],
+          "functionalities": [
+            "Select from/to account",
+            "Validate different accounts",
+            "Create paired transfer entries",
+            "Use transaction commit/rollback",
+            "Show transfer status"
+          ]
+        },
+        {
+          "featureName": "Launch transfer from quick add",
+          "version": "9.2",
+          "screensIncluded": [
+            "HomeScreen",
+            "TransferAmountScreen"
+          ],
+          "functionalities": [
+            "Show transfer in quick add",
+            "Navigate to transfer screen",
+            "Close quick add menu",
+            "Preserve current context",
+            "Return after submit"
+          ]
+        },
+        {
+          "featureName": "Transfer flow without source requirement",
+          "version": "9.3",
+          "screensIncluded": [
+            "TransferAmountScreen"
+          ],
+          "functionalities": [
+            "Remove source input",
+            "Skip source validation",
+            "Allow submit with no source",
+            "Persist transfer safely",
+            "Show transfer-only validation messages"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Recurring Entries Management",
+      "version": "10.0",
+      "childFeatures": [
+        {
+          "featureName": "Recurring toggle for expense entries",
+          "version": "10.1",
+          "screensIncluded": [
+            "AddExpenseScreen"
+          ],
+          "functionalities": [
+            "Show recurring switch",
+            "Persist recurring flag",
+            "Create/update template",
+            "Show recurring note",
+            "Disable recurring data when off"
+          ]
+        },
+        {
+          "featureName": "Recurring toggle for earning and salary",
+          "version": "10.2",
+          "screensIncluded": [
+            "EarningFormScreen",
+            "SalaryFormScreen"
+          ],
+          "functionalities": [
+            "Enable salary recurring",
+            "Enable earning recurring",
+            "Persist templates",
+            "Show helper text",
+            "Handle recurring validation"
+          ]
+        },
+        {
+          "featureName": "Recurring support for transfer",
+          "version": "10.3",
+          "screensIncluded": [
+            "TransferAmountScreen"
+          ],
+          "functionalities": [
+            "Enable transfer recurring switch",
+            "Create debit recurring template",
+            "Create credit recurring template",
+            "Preserve amount/account mapping",
+            "Skip when disabled"
+          ]
+        },
+        {
+          "featureName": "Recurring templates screen management",
+          "version": "10.4",
+          "screensIncluded": [
+            "RecurringEntriesScreen"
+          ],
+          "functionalities": [
+            "List templates",
+            "Edit template",
+            "Delete template",
+            "Apply templates per month",
+            "Show action feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Account Management",
+      "version": "11.0",
+      "childFeatures": [
+        {
+          "featureName": "Create and manage accounts",
+          "version": "11.1",
+          "screensIncluded": [
+            "AccountsScreen"
+          ],
+          "functionalities": [
+            "Create account",
+            "List accounts",
+            "Set active account",
+            "Delete/lock by rules",
+            "Show operation result messages"
+          ]
+        },
+        {
+          "featureName": "Select active account from forms",
+          "version": "11.2",
+          "screensIncluded": [
+            "AppNavigator",
+            "AddExpenseScreen",
+            "SalaryFormScreen"
+          ],
+          "functionalities": [
+            "Open account selector route",
+            "Return safely to form",
+            "Autoload active account",
+            "Update label after selection",
+            "Show missing-account prompts"
+          ]
+        },
+        {
+          "featureName": "Show signed balances and totals",
+          "version": "11.3",
+          "screensIncluded": [
+            "AccountsScreen",
+            "AccountSummaryScreen"
+          ],
+          "functionalities": [
+            "Compute earning minus spending",
+            "Show +/- signs",
+            "Color-code sign output",
+            "Reflect transfer impact",
+            "Keep totals consistent"
+          ]
+        },
+        {
+          "featureName": "Show account-wise entry history",
+          "version": "11.4",
+          "screensIncluded": [
+            "AccountSummaryScreen"
+          ],
+          "functionalities": [
+            "Load account-linked entries",
+            "Render history rows",
+            "Open entry detail",
+            "Show type indicators",
+            "Refresh after changes"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Home Dashboard And Quick Actions",
+      "version": "12.0",
+      "childFeatures": [
+        {
+          "featureName": "Show monthly summary on home",
+          "version": "12.1",
+          "screensIncluded": [
+            "HomeScreen"
+          ],
+          "functionalities": [
+            "Show earnings value",
+            "Show spending value",
+            "Show amount-left value",
+            "Display month/year",
+            "Refresh on month changes"
+          ]
+        },
+        {
+          "featureName": "Quick add actions for key entries",
+          "version": "12.2",
+          "screensIncluded": [
+            "HomeScreen"
+          ],
+          "functionalities": [
+            "Open quick action menu",
+            "Show core add actions",
+            "Navigate to selected form",
+            "Close action menu",
+            "Keep UX consistent"
+          ]
+        },
+        {
+          "featureName": "Carry-forward month logic in totals",
+          "version": "12.3",
+          "screensIncluded": [
+            "HomeScreen",
+            "ExpenseListScreen",
+            "EarningListScreen"
+          ],
+          "functionalities": [
+            "Use cumulative month filter",
+            "Carry previous data forward",
+            "Align earning/spending periods",
+            "Include due-date effect",
+            "Keep list and summary aligned"
+          ]
+        },
+        {
+          "featureName": "Home tabs for all earning and expense entries",
+          "version": "12.4",
+          "screensIncluded": [
+            "HomeScreen",
+            "BottomTabNavigator"
+          ],
+          "functionalities": [
+            "Show All tab in home entries list",
+            "Show Earning tab in home entries list",
+            "Show Expense tab in home entries list",
+            "Filter visible rows by selected tab",
+            "Remove separate earning and expense bottom tabs"
+          ]
+        },
+        {
+          "featureName": "Home period filter for month year and all",
+          "version": "12.5",
+          "screensIncluded": [
+            "HomeScreen",
+            "entryService"
+          ],
+          "functionalities": [
+            "Show Month filter chip on home",
+            "Show Year filter chip on home",
+            "Show All filter chip on home",
+            "Load entries and summary by selected period scope",
+            "Support month or year navigation controls based on filter"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Navigation And Entry UX",
+      "version": "13.0",
+      "childFeatures": [
+        {
+          "featureName": "Navigate to future months in lists",
+          "version": "13.1",
+          "screensIncluded": [
+            "HomeScreen",
+            "ExpenseListScreen",
+            "EarningListScreen"
+          ],
+          "functionalities": [
+            "Allow next month navigation",
+            "Handle year rollover",
+            "Reload data after move",
+            "Keep month title updated",
+            "Use same behavior in all lists"
+          ]
+        },
+        {
+          "featureName": "Back-safe account selector navigation",
+          "version": "13.2",
+          "screensIncluded": [
+            "AppNavigator",
+            "AddExpenseScreen",
+            "SalaryFormScreen"
+          ],
+          "functionalities": [
+            "Use dedicated selector screens",
+            "Preserve form on back",
+            "Avoid redirect bug",
+            "Keep entered form values",
+            "Ensure predictable back flow"
+          ]
+        },
+        {
+          "featureName": "Show account name in bold on entries",
+          "version": "13.3",
+          "screensIncluded": [
+            "HomeScreen",
+            "ExpenseListScreen",
+            "EarningListScreen"
+          ],
+          "functionalities": [
+            "Render account name in meta row",
+            "Apply bold text style",
+            "Show in all main lists",
+            "Hide when account absent",
+            "Preserve metadata formatting"
+          ]
+        },
+        {
+          "featureName": "Entry detail edit and update flow",
+          "version": "13.4",
+          "screensIncluded": [
+            "EntryDetailScreen"
+          ],
+          "functionalities": [
+            "Switch between read and edit mode",
+            "Edit core fields",
+            "Update or remove attachment",
+            "Persist changes",
+            "Show update success/error"
+          ]
+        },
+        {
+          "featureName": "Support landscape orientation across app",
+          "version": "13.5",
+          "screensIncluded": [
+            "app.json"
+          ],
+          "functionalities": [
+            "Allow app to rotate to landscape",
+            "Keep portrait support unchanged",
+            "Apply orientation at app config level",
+            "Use default orientation mode for device rotation",
+            "Enable both orientations for builds"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Backup And Restore",
+      "version": "14.0",
+      "childFeatures": [
+        {
+          "featureName": "Export backup data",
+          "version": "14.1",
+          "screensIncluded": [
+            "SettingsScreen"
+          ],
+          "functionalities": [
+            "Collect app entities for export",
+            "Build backup payload",
+            "Include metadata/timestamps",
+            "Return export result",
+            "Handle export failure"
+          ]
+        },
+        {
+          "featureName": "Restore backup for existing user",
+          "version": "14.2",
+          "screensIncluded": [
+            "RestoreBackupScreen",
+            "SettingsScreen"
+          ],
+          "functionalities": [
+            "Parse backup payload",
+            "Replace data in transaction",
+            "Map old/new IDs",
+            "Commit and refresh session",
+            "Rollback on restore errors"
+          ]
+        },
+        {
+          "featureName": "Restore backup as new user",
+          "version": "14.3",
+          "screensIncluded": [
+            "RestoreBackupScreen"
+          ],
+          "functionalities": [
+            "Create new user from backup",
+            "Validate duplicate usernames",
+            "Restore related data",
+            "Switch active session",
+            "Show restore validation messages"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Settings And Profile",
+      "version": "15.0",
+      "childFeatures": [
+        {
+          "featureName": "Settings tools and actions",
+          "version": "15.1",
+          "screensIncluded": [
+            "SettingsScreen"
+          ],
+          "functionalities": [
+            "Show settings menu",
+            "Open backup/restore actions",
+            "Navigate to profile",
+            "Handle confirmation actions",
+            "Show operation status"
+          ]
+        },
+        {
+          "featureName": "Profile view and update",
+          "version": "15.2",
+          "screensIncluded": [
+            "ProfileScreen"
+          ],
+          "functionalities": [
+            "Display profile fields",
+            "Edit profile values",
+            "Save profile updates",
+            "Show success feedback",
+            "Show error feedback"
+          ]
+        }
+      ]
+    }
+  ]
+}

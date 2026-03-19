@@ -9,6 +9,7 @@ import {
   Image,
   Pressable,
   Switch,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -32,6 +33,13 @@ const AddExpenseScreen = ({ navigation }) => {
   const [amount, setAmount] = useState('');
   const [selectedPerson, setSelectedPerson] = useState('');
   const [activePersonName, setActivePersonName] = useState('');
+  const [hasDueDate, setHasDueDate] = useState(false);
+  const [dueDateInput, setDueDateInput] = useState('');
+  const [dueDatePickerVisible, setDueDatePickerVisible] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
   const [hasAccounts, setHasAccounts] = useState(false);
   const [invoice, setInvoice] = useState(null);
   const [isRecurring, setIsRecurring] = useState(false);
@@ -56,6 +64,7 @@ const AddExpenseScreen = ({ navigation }) => {
           setSelectedPerson(String(activeResult.data.id));
           setActivePersonName(activeResult.data.name);
         }
+
       };
       loadPersons();
     }, [user])
@@ -85,11 +94,80 @@ const AddExpenseScreen = ({ navigation }) => {
     if (!selectedCategory) newErrors.category = 'Please select a category.';
     if (!amount.trim()) newErrors.amount = EXPENSE_MESSAGES.AMOUNT_REQUIRED;
     else if (parseFloat(amount) <= 0) newErrors.amount = EXPENSE_MESSAGES.AMOUNT_POSITIVE;
-    if (!selectedPerson) {
-      newErrors.account = hasAccounts ? EXPENSE_MESSAGES.ACCOUNT_REQUIRED : EXPENSE_MESSAGES.ACCOUNT_MISSING;
+    if (hasDueDate) {
+      const parsedDueDate = parseDueDateInput(dueDateInput);
+      if (!dueDateInput.trim()) {
+        newErrors.dueDate = EXPENSE_MESSAGES.DUE_DATE_REQUIRED;
+      } else if (!parsedDueDate) {
+        newErrors.dueDate = EXPENSE_MESSAGES.DUE_DATE_INVALID;
+      }
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const parseDueDateInput = (value) => {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+    if (!isoMatch) return null;
+    const y = Number(isoMatch[1]);
+    const m = Number(isoMatch[2]);
+    const d = Number(isoMatch[3]);
+    const candidate = new Date(y, m - 1, d, 12, 0, 0);
+    if (
+      Number.isNaN(candidate.getTime()) ||
+      candidate.getFullYear() !== y ||
+      candidate.getMonth() !== m - 1 ||
+      candidate.getDate() !== d
+    ) {
+      return null;
+    }
+    return candidate;
+  };
+
+  const formatDueDateLabel = (value) => {
+    const parsed = parseDueDateInput(value);
+    if (!parsed) return 'Select due date';
+    return `${String(parsed.getDate()).padStart(2, '0')} ${getMonthName(parsed.getMonth() + 1)} ${parsed.getFullYear()}`;
+  };
+
+  const formatDueDateKey = (dateObj) => {
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const openDueDatePicker = () => {
+    const selected = parseDueDateInput(dueDateInput);
+    const anchor = selected || new Date();
+    setCalendarMonth(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
+    setDueDatePickerVisible(true);
+  };
+
+  const changeCalendarMonth = (offset) => {
+    setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
+  };
+
+  const getCalendarCells = () => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const startOffset = firstDay.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = [];
+
+    for (let i = 0; i < startOffset; i += 1) {
+      cells.push(null);
+    }
+    for (let d = 1; d <= daysInMonth; d += 1) {
+      cells.push(new Date(year, month, d));
+    }
+    while (cells.length % 7 !== 0) {
+      cells.push(null);
+    }
+    return cells;
   };
 
   const handleSubmit = async () => {
@@ -104,8 +182,9 @@ const AddExpenseScreen = ({ navigation }) => {
         invoiceType = invoice.mimeType || null;
       }
 
-      const personId = parseInt(selectedPerson, 10);
+      const personId = selectedPerson ? parseInt(selectedPerson, 10) : null;
       const personLabel = activePersonName || '';
+      const parsedDueDate = hasDueDate ? parseDueDateInput(dueDateInput) : null;
 
       const result = await addEntry({
         userId: user.id,
@@ -114,9 +193,10 @@ const AddExpenseScreen = ({ navigation }) => {
         title: expenseName.trim(),
         amount: parseFloat(amount),
         date: formatDateForDB(new Date()),
+        dueDate: parsedDueDate ? formatDateForDB(parsedDueDate) : null,
         personId,
         isRecurring,
-        showInAccount: true,
+        showInAccount: !!personId,
         invoiceUri,
         invoiceType,
       });
@@ -226,27 +306,83 @@ const AddExpenseScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Account (Required) */}
-          <View style={styles.accountSection}>
-            <Text style={styles.inputLabel}>Account (Person)</Text>
-            {selectedPerson ? (
-              <View style={styles.activeAccountCard}>
-                <View style={styles.activeAccountLeft}>
-                  <Ionicons name="checkmark-circle" size={18} color={COLORS.income} />
-                  <Text style={styles.activeAccountText}>{activePersonName}</Text>
+          <View style={styles.dueDateCard}>
+            <View style={styles.dueDateHeader}>
+              <View style={styles.dueDateHeaderLeft}>
+                <Ionicons name="calendar-clear-outline" size={18} color={COLORS.primary} />
+                <View>
+                  <Text style={styles.dueDateTitle}>Set Due Date</Text>
+                  <Text style={styles.dueDateHint}>Expense will be counted in due-date month</Text>
                 </View>
-                <Pressable onPress={() => navigation.navigate('Accounts')} hitSlop={8} role="button">
-                  <Text style={styles.changeAccountText}>Change</Text>
+              </View>
+              <Switch
+                value={hasDueDate}
+                onValueChange={(val) => {
+                  setHasDueDate(val);
+                  if (!val) {
+                    setDueDateInput('');
+                    if (errors.dueDate) setErrors((prev) => ({ ...prev, dueDate: null }));
+                  }
+                }}
+                trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
+                thumbColor={hasDueDate ? COLORS.primary : COLORS.textLight}
+              />
+            </View>
+            {hasDueDate ? (
+              <View style={styles.dueDatePickerWrap}>
+                <Text style={styles.inputLabel}>Due Date</Text>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.dueDatePickerBtn,
+                    errors.dueDate && styles.dueDatePickerBtnError,
+                    pressed && { opacity: 0.85 },
+                  ]}
+                  onPress={openDueDatePicker}
+                  role="button"
+                >
+                  <View style={styles.dueDatePickerBtnLeft}>
+                    <Ionicons name="calendar-outline" size={18} color={COLORS.primary} />
+                    <Text style={[
+                      styles.dueDatePickerBtnText,
+                      !parseDueDateInput(dueDateInput) && styles.dueDatePickerPlaceholder,
+                    ]}>
+                      {formatDueDateLabel(dueDateInput)}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={COLORS.textSecondary} />
                 </Pressable>
+                {errors.dueDate ? <Text style={styles.accountErrorText}>{errors.dueDate}</Text> : null}
               </View>
             ) : null}
-            {errors.account ? <Text style={styles.accountErrorText}>{errors.account}</Text> : null}
-            {!hasAccounts ? (
-              <View style={styles.accountHint}>
-                <Ionicons name="information-circle-outline" size={14} color={COLORS.primary} />
-                <Text style={styles.accountHintText}>Add an account first from Accounts tab.</Text>
+          </View>
+
+          <View style={styles.dueDateCard}>
+            <View style={styles.dueDateHeaderLeft}>
+              <Ionicons name="person-circle-outline" size={18} color={COLORS.primary} />
+              <View>
+                <Text style={styles.dueDateTitle}>From Account</Text>
+                <Text style={styles.dueDateHint}>This expense is linked to selected account</Text>
               </View>
-            ) : null}
+            </View>
+            <View style={styles.accountSection}>
+              {selectedPerson ? (
+                <View style={styles.activeAccountCard}>
+                  <View style={styles.activeAccountLeft}>
+                    <Ionicons name="checkmark-circle" size={18} color={COLORS.income} />
+                    <Text style={styles.activeAccountText}>{activePersonName}</Text>
+                  </View>
+                  <Pressable onPress={() => navigation.navigate('AccountSelector')} hitSlop={8} role="button">
+                    <Text style={styles.changeAccountText}>Change</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {!hasAccounts ? (
+                <View style={styles.accountHint}>
+                  <Ionicons name="information-circle-outline" size={14} color={COLORS.primary} />
+                  <Text style={styles.accountHintText}>Add an account first from Accounts tab.</Text>
+                </View>
+              ) : null}
+            </View>
           </View>
 
           {/* Picture Attachment (Optional) */}
@@ -346,6 +482,80 @@ const AddExpenseScreen = ({ navigation }) => {
         onFilePicked={(file) => setInvoice(file)}
         accentColor={COLORS.expense}
       />
+
+      <Modal
+        visible={dueDatePickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDueDatePickerVisible(false)}
+      >
+        <Pressable style={styles.calendarOverlay} onPress={() => setDueDatePickerVisible(false)}>
+          <Pressable style={styles.calendarModal} onPress={() => {}}>
+            <View style={styles.calendarHeader}>
+              <Text style={styles.calendarTitle}>Select Due Date</Text>
+              <Pressable onPress={() => setDueDatePickerVisible(false)} role="button" hitSlop={8}>
+                <Ionicons name="close" size={22} color={COLORS.textSecondary} />
+              </Pressable>
+            </View>
+
+            <View style={styles.calendarMonthRow}>
+              <Pressable
+                style={({ pressed }) => [styles.calendarNavBtn, pressed && { opacity: 0.75 }]}
+                onPress={() => changeCalendarMonth(-1)}
+                role="button"
+              >
+                <Ionicons name="chevron-back" size={18} color={COLORS.text} />
+              </Pressable>
+              <Text style={styles.calendarMonthLabel}>
+                {getMonthName(calendarMonth.getMonth() + 1)} {calendarMonth.getFullYear()}
+              </Text>
+              <Pressable
+                style={({ pressed }) => [styles.calendarNavBtn, pressed && { opacity: 0.75 }]}
+                onPress={() => changeCalendarMonth(1)}
+                role="button"
+              >
+                <Ionicons name="chevron-forward" size={18} color={COLORS.text} />
+              </Pressable>
+            </View>
+
+            <View style={styles.weekRow}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                <Text key={day} style={styles.weekDayLabel}>{day}</Text>
+              ))}
+            </View>
+
+            <View style={styles.calendarGrid}>
+              {getCalendarCells().map((dateObj, idx) => {
+                if (!dateObj) {
+                  return <View key={`empty-${idx}`} style={styles.calendarCell} />;
+                }
+                const iso = formatDueDateKey(dateObj);
+                const isSelected = dueDateInput === iso;
+                return (
+                  <Pressable
+                    key={iso}
+                    style={({ pressed }) => [
+                      styles.calendarCell,
+                      isSelected && styles.calendarCellSelected,
+                      pressed && { opacity: 0.8 },
+                    ]}
+                    onPress={() => {
+                      setDueDateInput(iso);
+                      if (errors.dueDate) setErrors((prev) => ({ ...prev, dueDate: null }));
+                      setDueDatePickerVisible(false);
+                    }}
+                    role="button"
+                  >
+                    <Text style={[styles.calendarCellText, isSelected && styles.calendarCellTextSelected]}>
+                      {dateObj.getDate()}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -464,6 +674,143 @@ const styles = StyleSheet.create({
   },
   amountInput: {
     marginBottom: 0,
+  },
+  dueDateCard: {
+    marginBottom: 16,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: 12,
+    padding: 12,
+  },
+  dueDateHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  dueDateHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  dueDateTitle: {
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.semiBold,
+    color: COLORS.text,
+  },
+  dueDateHint: {
+    fontSize: FONTS.sizes.xs,
+    color: COLORS.textSecondary,
+    marginTop: 1,
+  },
+  dueDatePickerWrap: {
+    marginTop: 6,
+  },
+  dueDatePickerBtn: {
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dueDatePickerBtnError: {
+    borderColor: COLORS.danger,
+  },
+  dueDatePickerBtnLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dueDatePickerBtnText: {
+    fontSize: FONTS.sizes.base,
+    color: COLORS.text,
+    fontWeight: FONTS.weights.medium,
+  },
+  dueDatePickerPlaceholder: {
+    color: COLORS.textLight,
+    fontWeight: FONTS.weights.regular,
+  },
+  calendarOverlay: {
+    flex: 1,
+    backgroundColor: COLORS.overlay,
+    justifyContent: 'center',
+    padding: 22,
+  },
+  calendarModal: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 16,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  calendarTitle: {
+    fontSize: FONTS.sizes.lg,
+    fontWeight: FONTS.weights.bold,
+    color: COLORS.text,
+  },
+  calendarMonthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  calendarNavBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarMonthLabel: {
+    fontSize: FONTS.sizes.base,
+    fontWeight: FONTS.weights.semiBold,
+    color: COLORS.text,
+  },
+  weekRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  weekDayLabel: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: FONTS.sizes.xs,
+    color: COLORS.textSecondary,
+    fontWeight: FONTS.weights.semiBold,
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarCell: {
+    width: '14.285%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+  },
+  calendarCellSelected: {
+    backgroundColor: COLORS.primary + '20',
+  },
+  calendarCellText: {
+    fontSize: FONTS.sizes.sm,
+    color: COLORS.text,
+  },
+  calendarCellTextSelected: {
+    color: COLORS.primary,
+    fontWeight: FONTS.weights.bold,
   },
   accountSection: {
     marginBottom: 16,

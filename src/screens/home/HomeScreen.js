@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import { COLORS } from '../../constants/colors';
 import { FONTS } from '../../constants/fonts';
 import { getMonthName, getShortMonthName, formatTime12h } from '../../utils/dateUtils';
 import { formatAmount } from '../../utils/currencyUtils';
-import { getEntriesByMonth, getMonthSummary, deleteEntry } from '../../services/entryService';
+import { getEntriesForHome, getSummaryForHome, deleteEntry } from '../../services/entryService';
 import { applyRecurringEntries } from '../../services/recurringService';
 import { useAuth } from '../../hooks/useAuth';
 import { showAlert, showConfirm } from '../../utils/alertUtils';
@@ -28,13 +28,13 @@ const HomeScreen = ({ navigation }) => {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
+  const [entryTab, setEntryTab] = useState('all');
+  const [periodScope, setPeriodScope] = useState('month');
   const [entries, setEntries] = useState([]);
   const [summary, setSummary] = useState({ totalEarnings: 0, totalSpendings: 0, amountLeft: 0 });
   const [refreshing, setRefreshing] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
-
-  const isCurrentMonth = year === new Date().getFullYear() && month === new Date().getMonth() + 1;
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -47,17 +47,19 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const goNextMonth = () => {
-    if (isCurrentMonth) return;
     if (month === 12) { setMonth(1); setYear(year + 1); }
     else setMonth(month + 1);
   };
+
+  const goPrevYear = () => setYear((prev) => prev - 1);
+  const goNextYear = () => setYear((prev) => prev + 1);
 
   const loadData = useCallback(async () => {
     if (!user) return;
 
     const [entriesResult, summaryResult] = await Promise.all([
-      getEntriesByMonth(user.id, month, year),
-      getMonthSummary(user.id, month, year),
+      getEntriesForHome({ userId: user.id, scope: periodScope, month, year }),
+      getSummaryForHome({ userId: user.id, scope: periodScope, month, year }),
     ]);
 
     if (entriesResult.success) setEntries(entriesResult.data);
@@ -65,7 +67,7 @@ const HomeScreen = ({ navigation }) => {
     if (!entriesResult.success || !summaryResult.success) {
       showAlert('Error', COMMON_MESSAGES.REFRESH_FAILED);
     }
-  }, [user, month, year]);
+  }, [user, month, year, periodScope]);
 
   useFocusEffect(
     useCallback(() => {
@@ -109,25 +111,32 @@ const HomeScreen = ({ navigation }) => {
     );
   };
 
+  const filteredEntries = useMemo(() => {
+    if (entryTab === 'earning') return entries.filter((e) => e.type === 'earning');
+    if (entryTab === 'expense') return entries.filter((e) => e.type === 'spending');
+    return entries;
+  }, [entries, entryTab]);
+
   const handleExportPdf = async () => {
     try {
       setExportingPdf(true);
+      const scopeLabel = periodScope === 'all' ? 'All Time' : periodScope === 'year' ? `Year ${year}` : `${monthName} ${year}`;
       const result = await exportSummaryReportPdf({
-        title: `${monthName} ${year} - Home Report`,
+        title: `${scopeLabel} - Home Report`,
         subtitle: 'Monthly earnings, spendings and entry list',
         metaLines: [
-          `Entries: ${entries.length}`,
+          `Entries: ${filteredEntries.length}`,
         ],
         totals: [
           { label: 'Amount Left', value: `Rs. ${formatAmount(summary.amountLeft)}` },
           { label: 'Total Earnings', value: `Rs. ${formatAmount(summary.totalEarnings)}` },
           { label: 'Total Spendings', value: `Rs. ${formatAmount(summary.totalSpendings)}` },
         ],
-        rows: entries.map((entry) => ({
+        rows: filteredEntries.map((entry) => ({
           label: `${entry.title} (${entry.type})`,
           value: `Rs. ${formatAmount(entry.amount || 0)}`,
         })),
-        fileName: `home-report-${year}-${String(month).padStart(2, '0')}-${Date.now()}`,
+        fileName: `home-report-${periodScope}-${year}-${String(month).padStart(2, '0')}-${Date.now()}`,
       });
       if (result.success) {
         showAlert('Success', result.message || COMMON_MESSAGES.PDF_EXPORT_SUCCESS);
@@ -150,9 +159,10 @@ const HomeScreen = ({ navigation }) => {
   const timeString = `${displayHours}:${minutes}:${seconds}`;
 
   const renderEntry = ({ item }) => {
-    const day = new Date(item.date);
+    const displayDate = item.type === 'spending' && item.due_date ? item.due_date : item.date;
+    const day = new Date(displayDate);
     const datePart = `${String(day.getDate()).padStart(2, '0')} ${getShortMonthName(day.getMonth() + 1)}`;
-    const timePart = formatTime12h(item.date);
+    const timePart = formatTime12h(displayDate);
     const dateLabel = timePart ? `${datePart} · ${timePart}` : datePart;
 
     return (
@@ -161,6 +171,7 @@ const HomeScreen = ({ navigation }) => {
         amount={formatAmount(item.amount)}
         type={item.type}
         category={item.entry_type}
+        accountName={item.person_name}
         date={dateLabel}
         invoiceUri={item.invoice_uri}
         onPress={() => navigation.navigate('EntryDetail', { entry: item })}
@@ -172,22 +183,9 @@ const HomeScreen = ({ navigation }) => {
   const ListHeader = () => (
     <View>
       <View style={styles.header}>
-        <View style={styles.monthNav}>
-          <Pressable onPress={goPrevMonth} style={styles.monthNavBtn} hitSlop={10}>
-            <Ionicons name="chevron-back" size={20} color={COLORS.text} />
-          </Pressable>
-          <View style={styles.monthCenter}>
-            <Text style={styles.monthText}>{monthName} {year}</Text>
-            <Text style={styles.greeting}>Your monthly overview</Text>
-          </View>
-          <Pressable
-            onPress={goNextMonth}
-            style={[styles.monthNavBtn, isCurrentMonth && { opacity: 0.3 }]}
-            disabled={isCurrentMonth}
-            hitSlop={10}
-          >
-            <Ionicons name="chevron-forward" size={20} color={COLORS.text} />
-          </Pressable>
+        <View>
+          <Text style={styles.monthText}>Home</Text>
+          <Text style={styles.greeting}>Your entries overview</Text>
         </View>
         <View style={styles.clockContainer}>
           <Ionicons name="time-outline" size={16} color={COLORS.primaryLight} />
@@ -196,8 +194,49 @@ const HomeScreen = ({ navigation }) => {
         </View>
       </View>
 
+      <View style={styles.filterRow}>
+        {[
+          { key: 'month', label: 'Month' },
+          { key: 'year', label: 'Year' },
+          { key: 'all', label: 'All' },
+        ].map((f) => (
+          <Pressable
+            key={f.key}
+            style={[styles.filterChip, periodScope === f.key && styles.filterChipActive]}
+            onPress={() => setPeriodScope(f.key)}
+            role="button"
+          >
+            <Text style={[styles.filterChipText, periodScope === f.key && styles.filterChipTextActive]}>{f.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {periodScope !== 'all' ? (
+        <View style={styles.monthNav}>
+          <Pressable onPress={periodScope === 'month' ? goPrevMonth : goPrevYear} style={styles.monthNavBtn} hitSlop={10}>
+            <Ionicons name="chevron-back" size={20} color={COLORS.text} />
+          </Pressable>
+          <View style={styles.monthCenter}>
+            <Text style={styles.monthText}>{periodScope === 'month' ? `${monthName} ${year}` : `Year ${year}`}</Text>
+            <Text style={styles.greeting}>Your overview</Text>
+          </View>
+          <Pressable
+            onPress={periodScope === 'month' ? goNextMonth : goNextYear}
+            style={styles.monthNavBtn}
+            hitSlop={10}
+          >
+            <Ionicons name="chevron-forward" size={20} color={COLORS.text} />
+          </Pressable>
+        </View>
+      ) : (
+        <View style={styles.monthCenterAll}>
+          <Text style={styles.monthText}>All Time</Text>
+          <Text style={styles.greeting}>Your full overview</Text>
+        </View>
+      )}
+
       <View style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>Amount Left This Month</Text>
+        <Text style={styles.balanceLabel}>Amount Left</Text>
         <Text style={styles.balanceAmount}>Rs. {formatAmount(summary.amountLeft)}</Text>
 
         <View style={styles.balanceRow}>
@@ -242,9 +281,24 @@ const HomeScreen = ({ navigation }) => {
       </Pressable>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Recent Entries</Text>
+        <View style={styles.sectionTabs}>
+          {[
+            { key: 'all', label: 'All' },
+            { key: 'earning', label: 'Earning' },
+            { key: 'expense', label: 'Expense' },
+          ].map((t) => (
+            <Pressable
+              key={t.key}
+              style={[styles.sectionTab, entryTab === t.key && styles.sectionTabActive]}
+              onPress={() => setEntryTab(t.key)}
+              role="button"
+            >
+              <Text style={[styles.sectionTabText, entryTab === t.key && styles.sectionTabTextActive]}>{t.label}</Text>
+            </Pressable>
+          ))}
+        </View>
         <View style={styles.sectionRight}>
-          <Text style={styles.entryCount}>{entries.length} Entries</Text>
+          <Text style={styles.entryCount}>{filteredEntries.length} Entries</Text>
             <Pressable
               style={({ pressed }) => [styles.exportButton, pressed && { opacity: 0.6 }, exportingPdf && { opacity: 0.5 }]}
               onPress={handleExportPdf}
@@ -277,7 +331,7 @@ const HomeScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <FlatList
-        data={entries}
+        data={filteredEntries}
         renderItem={renderEntry}
         keyExtractor={(item) => String(item.id)}
         ListHeaderComponent={ListHeader}
@@ -334,6 +388,40 @@ const HomeScreen = ({ navigation }) => {
             </View>
             <Ionicons name="chevron-forward" size={16} color={COLORS.textLight} />
           </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.quickAddOption, pressed && { opacity: 0.85 }]}
+            onPress={() => {
+              setShowQuickAdd(false);
+              navigation.navigate('TransferAmount');
+            }}
+            role="button"
+          >
+            <View style={[styles.quickAddIconWrap, { backgroundColor: COLORS.primary + '16' }]}>
+              <Ionicons name="swap-horizontal-outline" size={18} color={COLORS.primary} />
+            </View>
+            <View style={styles.quickAddTextWrap}>
+              <Text style={styles.quickAddTitle}>Transfer Amount</Text>
+              <Text style={styles.quickAddSubtitle}>Move balance between accounts</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={COLORS.textLight} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.quickAddOption, pressed && { opacity: 0.85 }]}
+            onPress={() => {
+              setShowQuickAdd(false);
+              navigation.navigate('AddDue');
+            }}
+            role="button"
+          >
+            <View style={[styles.quickAddIconWrap, { backgroundColor: COLORS.warning + '16' }]}>
+              <Ionicons name="receipt-outline" size={18} color={COLORS.warning} />
+            </View>
+            <View style={styles.quickAddTextWrap}>
+              <Text style={styles.quickAddTitle}>Add Due</Text>
+              <Text style={styles.quickAddSubtitle}>Track due from one account to another</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={COLORS.textLight} />
+          </Pressable>
         </View>
       ) : null}
 
@@ -363,8 +451,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 12,
     paddingTop: 8,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  filterChipActive: {
+    backgroundColor: COLORS.primary + '14',
+    borderColor: COLORS.primary + '35',
+  },
+  filterChipText: {
+    fontSize: FONTS.sizes.sm,
+    color: COLORS.textSecondary,
+    fontWeight: FONTS.weights.medium,
+  },
+  filterChipTextActive: {
+    color: COLORS.primary,
+    fontWeight: FONTS.weights.semiBold,
   },
   monthNav: {
     flexDirection: 'row',
@@ -382,6 +496,10 @@ const styles = StyleSheet.create({
     borderColor: COLORS.borderLight,
   },
   monthCenter: {},
+  monthCenterAll: {
+    marginBottom: 16,
+    alignItems: 'center',
+  },
   monthText: {
     fontSize: FONTS.sizes.xxl,
     fontWeight: FONTS.weights.bold,
@@ -497,6 +615,31 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 14,
+  },
+  sectionTabs: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  sectionTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  sectionTabActive: {
+    backgroundColor: COLORS.primary + '14',
+    borderColor: COLORS.primary + '35',
+  },
+  sectionTabText: {
+    fontSize: FONTS.sizes.sm,
+    color: COLORS.textSecondary,
+    fontWeight: FONTS.weights.medium,
+  },
+  sectionTabTextActive: {
+    color: COLORS.primary,
+    fontWeight: FONTS.weights.semiBold,
   },
   sectionTitle: {
     fontSize: FONTS.sizes.lg,

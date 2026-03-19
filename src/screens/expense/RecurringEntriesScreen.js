@@ -18,6 +18,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { formatAmount } from '../../utils/currencyUtils';
 import { showAlert, showConfirm } from '../../utils/alertUtils';
 import { COMMON_MESSAGES } from '../../messages/commonMessages';
+import { RECURRING_MESSAGES } from '../../../messages/recurringMessages';
 
 const RecurringEntriesScreen = () => {
   const { user } = useAuth();
@@ -102,11 +103,11 @@ const RecurringEntriesScreen = () => {
 
   const handleUpdate = async () => {
     if (!editTitle.trim()) {
-      showAlert('Error', 'Title is required.');
+      showAlert('Error', RECURRING_MESSAGES.TITLE_REQUIRED);
       return;
     }
     if (!editAmount.trim() || parseFloat(editAmount) <= 0) {
-      showAlert('Error', 'Enter a valid amount.');
+      showAlert('Error', RECURRING_MESSAGES.AMOUNT_INVALID);
       return;
     }
 

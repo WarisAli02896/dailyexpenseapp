@@ -70,13 +70,9 @@ const EarningListScreen = ({ navigation }) => {
   };
 
   const goNext = () => {
-    const n = new Date();
-    if (year === n.getFullYear() && month === n.getMonth() + 1) return;
     if (month === 12) { setMonth(1); setYear(year + 1); }
     else setMonth(month + 1);
   };
-
-  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
 
   const handleDelete = (entry) => {
     showConfirm('Delete Entry', `Delete "${entry.title}"?`, async () => {
@@ -102,6 +98,7 @@ const EarningListScreen = ({ navigation }) => {
         amount={formatAmount(item.amount)}
         type={item.type}
         category={item.entry_type}
+        accountName={item.person_name}
         date={dateLabel}
         invoiceUri={item.invoice_uri}
         onPress={() => navigation.navigate('EntryDetail', { entry: item })}
@@ -119,8 +116,7 @@ const EarningListScreen = ({ navigation }) => {
         <Text style={styles.monthText}>{getMonthName(month)} {year}</Text>
         <Pressable
           onPress={goNext}
-          style={[styles.navBtn, isCurrentMonth && { opacity: 0.3 }]}
-          disabled={isCurrentMonth}
+          style={styles.navBtn}
           hitSlop={10}
         >
           <Ionicons name="chevron-forward" size={22} color={COLORS.text} />

@@ -22,6 +22,7 @@ import { saveInvoice, formatFileSize, getFileType } from '../../services/fileSer
 import { Button, Dropdown, AttachmentPicker } from '../../components/common';
 import { showAlert, showConfirm } from '../../utils/alertUtils';
 import { COMMON_MESSAGES } from '../../messages/commonMessages';
+import { EXPENSE_MESSAGES } from '../../messages/expenseMessages';
 
 const TYPE_OPTIONS = [
   { value: 'earning', label: 'Earning', icon: 'arrow-down-circle-outline' },
@@ -57,6 +58,12 @@ const EntryDetailScreen = ({ route, navigation }) => {
   const editIsEarning = editType === 'earning';
   const entryDate = new Date(entry.date);
   const dateDisplay = `${String(entryDate.getDate()).padStart(2, '0')} ${getMonthName(entryDate.getMonth() + 1)} ${entryDate.getFullYear()}`;
+  const dueDateDisplay = entry.due_date
+    ? (() => {
+        const d = new Date(entry.due_date);
+        return `${String(d.getDate()).padStart(2, '0')} ${getMonthName(d.getMonth() + 1)} ${d.getFullYear()}`;
+      })()
+    : null;
   const timeDisplay = formatTime12h(entry.date);
   const accentColor = editing
     ? (editIsEarning ? COLORS.income : COLORS.expense)
@@ -98,11 +105,11 @@ const EntryDetailScreen = ({ route, navigation }) => {
             dialogTitle: 'Save Invoice',
           });
         } else {
-          showAlert('Error', 'Sharing is not available on this device.');
+          showAlert('Error', EXPENSE_MESSAGES.ENTRY_SHARE_UNAVAILABLE);
         }
       }
     } catch (error) {
-      showAlert('Error', 'Could not download file. The file may no longer be available.');
+      showAlert('Error', EXPENSE_MESSAGES.ENTRY_DOWNLOAD_FAILED);
     }
   };
 
@@ -161,8 +168,8 @@ const EntryDetailScreen = ({ route, navigation }) => {
   };
 
   const handleSave = async () => {
-    if (!editTitle.trim()) { showAlert('Error', 'Title is required.'); return; }
-    if (!editAmount.trim() || parseFloat(editAmount) <= 0) { showAlert('Error', 'Enter a valid amount greater than 0.'); return; }
+    if (!editTitle.trim()) { showAlert('Error', EXPENSE_MESSAGES.ENTRY_TITLE_REQUIRED); return; }
+    if (!editAmount.trim() || parseFloat(editAmount) <= 0) { showAlert('Error', EXPENSE_MESSAGES.ENTRY_AMOUNT_INVALID); return; }
 
     setSaving(true);
     try {
@@ -311,6 +318,7 @@ const EntryDetailScreen = ({ route, navigation }) => {
 
             {/* Date & Time (read-only) */}
             <DetailRow icon="calendar-outline" label="Date" value={dateDisplay} />
+            {dueDateDisplay ? <DetailRow icon="calendar-clear-outline" label="Due Date" value={dueDateDisplay} /> : null}
             {timeDisplay ? <DetailRow icon="time-outline" label="Time" value={timeDisplay} /> : null}
 
             {/* Recurring Toggle */}
@@ -364,6 +372,7 @@ const EntryDetailScreen = ({ route, navigation }) => {
             {entry.company_name ? <DetailRow icon="business-outline" label="Company" value={entry.company_name} /> : null}
             {entry.person_name ? <DetailRow icon="person-outline" label="Account" value={entry.person_name} /> : null}
             <DetailRow icon="calendar-outline" label="Date" value={dateDisplay} />
+            {dueDateDisplay ? <DetailRow icon="calendar-clear-outline" label="Due Date" value={dueDateDisplay} /> : null}
             {timeDisplay ? <DetailRow icon="time-outline" label="Time" value={timeDisplay} /> : null}
             <DetailRow icon="repeat-outline" label="Recurring" value={entry.is_recurring ? 'Yes — Monthly' : 'No'} />
             {entry.person_id ? (

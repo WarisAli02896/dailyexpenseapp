@@ -20,6 +20,7 @@ import { COMMON_MESSAGES } from '../../messages/commonMessages';
 import { exportSummaryReportPdf } from '../../services/pdfReportService';
 
 const INVEST_COLOR = '#7C4DFF';
+const formatSignedRupee = (value) => `${value >= 0 ? '+' : '-'} Rs. ${formatAmount(Math.abs(value || 0))}`;
 
 const AccountsScreen = () => {
   const navigation = useNavigation();
@@ -60,7 +61,7 @@ const AccountsScreen = () => {
 
   const handleAdd = async () => {
     if (!newName.trim()) {
-      showAlert('Error', 'Please enter a person name.');
+      showAlert('Error', ACCOUNT_MESSAGES.PERSON_NAME_REQUIRED);
       return;
     }
 
@@ -146,11 +147,11 @@ const AccountsScreen = () => {
           `Selected accounts: ${selectedAccounts.length}`,
         ],
         totals: [
-          { label: 'Selected Accounts Total', value: `Rs. ${formatAmount(selectedTotal)}` },
+          { label: 'Selected Accounts Total', value: formatSignedRupee(selectedTotal) },
         ],
         rows: selectedAccounts.map((account) => ({
           label: account.name,
-          value: `Rs. ${formatAmount(account.total_invested || 0)}`,
+          value: formatSignedRupee(account.total_invested || 0),
         })),
         fileName: `selected-accounts-${Date.now()}`,
       });
@@ -173,6 +174,7 @@ const AccountsScreen = () => {
   const renderPerson = ({ item, index }) => {
     const bgColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
     const totalInvested = item.total_invested || 0;
+    const amountColor = totalInvested >= 0 ? COLORS.income : COLORS.expense;
     const entryCount = item.entry_count || 0;
     const isDefault = item.is_default === 1;
     const isLocked = item.is_locked === 1;
@@ -213,7 +215,7 @@ const AccountsScreen = () => {
           </Text>
         </View>
         <View style={styles.personAmountWrap}>
-          <Text style={styles.personAmount}>Rs. {formatAmount(totalInvested)}</Text>
+          <Text style={[styles.personAmount, { color: amountColor }]}>{formatSignedRupee(totalInvested)}</Text>
           <View style={styles.personRowRight}>
             <Ionicons name="chevron-forward" size={16} color={COLORS.textLight} />
           </View>
@@ -292,7 +294,10 @@ const AccountsScreen = () => {
             <Ionicons name="wallet-outline" size={22} color={INVEST_COLOR} />
             <View>
               <Text style={styles.totalLabel}>Selected Accounts Total</Text>
-              <Text style={styles.totalAmount}>Rs. {formatAmount(selectedTotal)}</Text>
+              <Text style={[
+                styles.totalAmount,
+                { color: selectedTotal >= 0 ? COLORS.income : COLORS.expense },
+              ]}>{formatSignedRupee(selectedTotal)}</Text>
             </View>
           </View>
           <Pressable

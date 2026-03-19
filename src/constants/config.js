@@ -1,6 +1,6 @@
 export const APP_CONFIG = {
   name: 'Daily Expense',
-  version: '1.0.0',
+  version: '2.0',
   defaultCurrency: 'PKR',
   currencySymbol: 'Rs.',
   dateFormat: 'DD/MM/YYYY',

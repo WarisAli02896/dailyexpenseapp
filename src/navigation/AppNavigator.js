@@ -10,11 +10,16 @@ import EntryDetailScreen from '../screens/expense/EntryDetailScreen';
 import RecurringEntriesScreen from '../screens/expense/RecurringEntriesScreen';
 import AccountsScreen from '../screens/accounts/AccountsScreen';
 import AccountSummaryScreen from '../screens/accounts/AccountSummaryScreen';
+import TransferAmountScreen from '../screens/accounts/TransferAmountScreen';
+import AddDueScreen from '../screens/due/AddDueScreen';
+import DueAccountDetailScreen from '../screens/due/DueAccountDetailScreen';
 import ProfileScreen from '../screens/settings/ProfileScreen';
 import { COLORS } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
 import { logoutUser } from '../services/authService';
 import { showAlert, showConfirm } from '../utils/alertUtils';
+import { AUTH_MESSAGES } from '../messages/authMessages';
+import { HeaderTitleWithAccount } from '../components/common';
 
 const Stack = createNativeStackNavigator();
 
@@ -31,7 +36,7 @@ const AppNavigator = () => {
           showAlert('Error', result.message);
         }
       } catch (error) {
-        showAlert('Error', 'Logout failed. Please try again.');
+        showAlert('Error', AUTH_MESSAGES.LOGOUT_FAILED);
       }
     });
   };
@@ -41,8 +46,8 @@ const AppNavigator = () => {
       screenOptions={{
         headerStyle: { backgroundColor: COLORS.primary },
         headerTintColor: COLORS.textWhite,
-        headerTitleStyle: { fontWeight: '600' },
         headerTitleAlign: 'center',
+        headerTitle: ({ children }) => <HeaderTitleWithAccount title={children} />,
         contentStyle: { backgroundColor: COLORS.background },
         headerRight: () => (
           <Pressable
@@ -92,9 +97,29 @@ const AppNavigator = () => {
         options={{ title: 'Accounts' }}
       />
       <Stack.Screen
+        name="AccountSelector"
+        component={AccountsScreen}
+        options={{ title: 'Select Account' }}
+      />
+      <Stack.Screen
         name="AccountSummary"
         component={AccountSummaryScreen}
         options={{ title: 'Account Summary' }}
+      />
+      <Stack.Screen
+        name="TransferAmount"
+        component={TransferAmountScreen}
+        options={{ title: 'Transfer Amount' }}
+      />
+      <Stack.Screen
+        name="AddDue"
+        component={AddDueScreen}
+        options={{ title: 'Add Due' }}
+      />
+      <Stack.Screen
+        name="DueAccountDetail"
+        component={DueAccountDetailScreen}
+        options={({ route }) => ({ title: route?.params?.personName ? `${route.params.personName} Due` : 'Due Details' })}
       />
       <Stack.Screen
         name="Profile"

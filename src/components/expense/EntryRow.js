@@ -6,7 +6,7 @@ import { FONTS } from '../../constants/fonts';
 
 const capitalize = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 
-const EntryRow = ({ title, amount, type, category, date, invoiceUri, onPress, onDelete }) => {
+const EntryRow = ({ title, amount, type, category, date, accountName, invoiceUri, onPress, onDelete }) => {
   const isEarning = type === 'earning';
 
   return (
@@ -29,7 +29,14 @@ const EntryRow = ({ title, amount, type, category, date, invoiceUri, onPress, on
         <Text style={styles.title} numberOfLines={1}>{title}</Text>
         <View style={styles.metaRow}>
           <Text style={styles.meta}>
-            {capitalize(category)}{date ? ` · ${date}` : ''}
+            {capitalize(category)}
+            {accountName ? (
+              <>
+                <Text style={styles.meta}> · </Text>
+                <Text style={styles.metaAccount}>{accountName}</Text>
+              </>
+            ) : null}
+            {date ? <Text style={styles.meta}> · {date}</Text> : null}
           </Text>
           {invoiceUri ? (
             <View style={styles.invoiceTag}>
@@ -108,6 +115,11 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: FONTS.sizes.sm,
     color: COLORS.textSecondary,
+  },
+  metaAccount: {
+    fontSize: FONTS.sizes.sm,
+    color: COLORS.text,
+    fontWeight: FONTS.weights.bold,
   },
   amount: {
     fontSize: FONTS.sizes.base,

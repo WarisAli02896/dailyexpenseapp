@@ -1,0 +1,35 @@
+---
+description: Enforce project-structure check and centralized messages directory usage
+alwaysApply: true
+---
+
+# Project Structure And Messages Rules
+
+## Project structure first
+
+- Before setting up or changing anything, check the project folder structure and place files in the correct location.
+- Do not assume paths; verify existing directories before creating new files or folders.
+
+## Messages directory convention
+
+- Keep success/error text for API, database, server, and model responses in `/messages`.
+- Prefer importing message constants from `/messages` files instead of hardcoding user-facing response strings in services, models, or controllers.
+
+## Feature and release tracking
+
+- Follow this version tracking file: `feature-version-template.json`.
+- If any new feature or child feature is added, update `feature-version-template.json`.
+- After updating any feature, always ask user whether to create a build.
+
+## Release APK naming
+
+- Use this release APK naming format: `app-release-vx.x-date-time.apk`.
+- Keep `vx.x` aligned with the release/app version used for that build.
+- Keep `date-time` in a sortable format (for example: `YYYYMMDD-HHMM`).
+
+## Example
+
+```js
+// Good: centralized message usage
+import { API_SUCCESS, API_ERROR } from '../messages/commonMessages';
+```
