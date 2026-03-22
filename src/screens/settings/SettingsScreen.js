@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { makeRedirectUri } from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { Button } from '../../components/common';
 import { COLORS } from '../../constants/colors';
@@ -19,8 +18,6 @@ import {
 import { BACKUP_MESSAGES } from '../../messages/backupMessages';
 import { AUTH_MESSAGES } from '../../messages/authMessages';
 import { showAlert, showConfirm } from '../../utils/alertUtils';
-
-WebBrowser.maybeCompleteAuthSession();
 
 const SettingsScreen = ({ navigation }) => {
   const { user, logout, updateUser } = useAuth();
@@ -45,6 +42,11 @@ const SettingsScreen = ({ navigation }) => {
     if (!response) return;
 
     if (response.type === 'success') {
+      // Native Google flow uses authorization code first; expo-auth-session exchanges it async.
+      if (response.params?.code && !response.authentication?.accessToken && !response.params?.access_token) {
+        return;
+      }
+
       const token =
         response.authentication?.accessToken ||
         response.params?.access_token ||

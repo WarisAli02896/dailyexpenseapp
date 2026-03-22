@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { makeRedirectUri } from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { Button } from '../../components/common';
 import { COLORS } from '../../constants/colors';
@@ -16,8 +15,6 @@ import {
 } from '../../services/googleDriveBackupService';
 import { showAlert } from '../../utils/alertUtils';
 import { useAuth } from '../../hooks/useAuth';
-
-WebBrowser.maybeCompleteAuthSession();
 
 const RestoreBackupScreen = ({ navigation }) => {
   const { login, markUserCreated } = useAuth();
@@ -40,6 +37,10 @@ const RestoreBackupScreen = ({ navigation }) => {
     if (!response) return;
 
     if (response.type === 'success') {
+      if (response.params?.code && !response.authentication?.accessToken && !response.params?.access_token) {
+        return;
+      }
+
       const token =
         response.authentication?.accessToken ||
         response.params?.access_token ||

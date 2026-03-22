@@ -1,290 +1,191 @@
 {
   "project": "DailyExpenseShort",
   "versioning": {
-    "buildVersion": "x",
-    "featureVersion": "x.x",
-    "functionalityVersion": "x.x.x",
-    "startFrom": "1.0.0"
+    "format": "x.x.x.x.x",
+    "releaseNumber": "x",
+    "buildVersion": "x.x",
+    "featureVersion": "x.x.x",
+    "functionalityVersion": "x.x.x.x",
+    "changeIncrement": "x.x.x.x.x",
+    "startFrom": "1.0.0.0.0"
   },
   "releases": [
     {
-      "buildVersion": "1.0.0",
-      "releaseDate": "2026-03-17",
+      "buildVersion": "1.0.0.0.0",
+      "releaseDate": "2026-03-20",
+      "oldFeatures": [],
+      "updatedFeatures": [],
+      "newFeatures": [],
+      "summary": {
+        "buildNumber": 1,
+        "featureChanges": 0,
+        "functionalityChanges": 0
+      },
+      "notes": "Release tracking reset. Proper versioning starts from 1.0.0.0."
+    },
+    {
+      "buildVersion": "1.0.8.11.1",
+      "releaseDate": "2026-03-21",
+      "oldFeatures": [
+        {
+          "featureName": "Mark due entry as repaid",
+          "featureVersion": "8.4",
+          "functionalityVersion": "8.4.0",
+          "changeType": "existing",
+          "screensAffected": [
+            "DueAmountScreen",
+            "DueAccountDetailScreen",
+            "entryService"
+          ],
+          "functionalities": [
+            "Repay action credited amount back to From account",
+            "Original due flag was unset after repayment"
+          ]
+        }
+      ],
+      "updatedFeatures": [
+        {
+          "featureName": "Repay due with two-sided account posting",
+          "featureVersion": "8.11",
+          "functionalityVersion": "8.11.0",
+          "changeType": "updated",
+          "screensAffected": [
+            "DueAmountScreen",
+            "DueAccountDetailScreen",
+            "entryService"
+          ],
+          "functionalities": [
+            "Credit repayment amount to From account",
+            "Debit repayment amount from To account",
+            "Save both repayment entries in single transaction",
+            "Keep due marked as repaid after successful posting",
+            "Delete linked repayment records together using repayment reference id"
+          ]
+        }
+      ],
+      "newFeatures": [],
+      "summary": {
+        "buildNumber": 2,
+        "featureChanges": 1,
+        "functionalityChanges": 5
+      },
+      "notes": "Fixed due repayment balance mismatch by posting mirrored debit/credit entries for both involved accounts."
+    },
+    {
+      "buildVersion": "1.0.8.11.2",
+      "releaseDate": "2026-03-21",
+      "oldFeatures": [],
+      "updatedFeatures": [
+        {
+          "featureName": "Repay due with two-sided account posting",
+          "featureVersion": "8.11",
+          "functionalityVersion": "8.11.0",
+          "changeType": "updated",
+          "screensAffected": [
+            "database"
+          ],
+          "functionalities": [
+            "Handle WAL setup fallback when unsupported",
+            "Apply foreign key safe table reset sequence",
+            "Avoid startup failure while testing due repayment flow"
+          ]
+        }
+      ],
+      "newFeatures": [],
+      "summary": {
+        "buildNumber": 3,
+        "featureChanges": 1,
+        "functionalityChanges": 3
+      },
+      "notes": "Follow-up fix under 8.11 flow: database initialization stabilized so due repayment testing and runtime stay reliable."
+    },
+    {
+      "buildVersion": "1.0.8.11.3",
+      "releaseDate": "2026-03-21",
       "oldFeatures": [],
       "updatedFeatures": [],
       "newFeatures": [
         {
-          "featureName": "Release tracking baseline initialization",
-          "featureVersion": "1.0",
-          "functionalityVersion": "1.0.0",
+          "featureName": "Android local release on Windows (NDK 27 libc++ link)",
+          "featureVersion": "16.2",
+          "functionalityVersion": "16.2.0",
           "changeType": "new",
-          "screensAffected": ["release-tracking.json", ".cursor/rules/project-structure-and-messages.mdc"],
+          "screensAffected": [
+            "android native build",
+            "postinstall script"
+          ],
           "functionalities": [
-            "Start release tracking from 1.0.0",
-            "Define x, x.x and x.x.x version usage"
-          ]
-        }
-      ],
-      "summary": {
-        "buildNumber": 1,
-        "featureChanges": 1,
-        "functionalityChanges": 2
-      },
-      "notes": "Baseline created with new versioning rules."
-    },
-    {
-      "buildVersion": "2.0.0",
-      "releaseDate": "2026-03-17",
-      "oldFeatures": [
-        {
-          "featureName": "Due Amount Tracking",
-          "featureVersion": "8.0",
-          "functionalityVersion": "8.4.0",
-          "changeType": "existing",
-          "screensAffected": ["DueAmountScreen"],
-          "functionalities": ["Existing due listing and repay action before refactor"]
-        }
-      ],
-      "updatedFeatures": [
-        {
-          "featureName": "Due On Account Management",
-          "featureVersion": "7.1",
-          "functionalityVersion": "7.1.1",
-          "changeType": "updated",
-          "screensAffected": ["AddExpenseScreen"],
-          "functionalities": ["Removed due-on-account creation from expense form"]
-        }
-      ],
-      "newFeatures": [
-        {
-          "featureName": "Create separate due form with from and to accounts",
-          "featureVersion": "8.5",
-          "functionalityVersion": "8.5.0",
-          "changeType": "new",
-          "screensAffected": ["AddDueScreen", "AppNavigator", "HomeScreen", "DueAmountScreen"],
-          "functionalities": [
-            "From defaults to active account",
-            "To account captured separately",
-            "Separate due date for due flow",
-            "Attachment support in due form"
-          ]
-        },
-        {
-          "featureName": "Show only from-account entry in dashboards for due flow",
-          "featureVersion": "8.6",
-          "functionalityVersion": "8.6.0",
-          "changeType": "new",
-          "screensAffected": ["HomeScreen", "ExpenseListScreen", "DueAmountScreen"],
-          "functionalities": [
-            "Deduct amount from From account",
-            "Repay adds amount back to From account",
-            "Due listing shows To account context"
-          ]
-        }
-      ],
-      "summary": {
-        "buildNumber": 2,
-        "featureChanges": 3,
-        "functionalityChanges": 8
-      },
-      "notes": "Major due-flow refactor completed."
-    },
-    {
-      "buildVersion": "3.0.0",
-      "releaseDate": "2026-03-17",
-      "oldFeatures": [
-        {
-          "featureName": "Show due list with total summary",
-          "featureVersion": "8.2",
-          "functionalityVersion": "8.2.0",
-          "changeType": "existing",
-          "screensAffected": ["DueAmountScreen"],
-          "functionalities": ["Single list mode before tabs"]
-        }
-      ],
-      "updatedFeatures": [
-        {
-          "featureName": "Mark due entry as repaid",
-          "featureVersion": "8.4",
-          "functionalityVersion": "8.4.1",
-          "changeType": "updated",
-          "screensAffected": ["DueAmountScreen", "entryService"],
-          "functionalities": [
-            "Keep repaid records visible",
-            "Show repaid state in list"
-          ]
-        }
-      ],
-      "newFeatures": [
-        {
-          "featureName": "Add all entries and accounts tabs in due screen",
-          "featureVersion": "8.7",
-          "functionalityVersion": "8.7.0",
-          "changeType": "new",
-          "screensAffected": ["DueAmountScreen"],
-          "functionalities": [
-            "All Entries tab",
-            "Accounts tab",
-            "Account-wise due totals"
-          ]
-        },
-        {
-          "featureName": "Keep repaid entries visible with repaid label",
-          "featureVersion": "8.8",
-          "functionalityVersion": "8.8.0",
-          "changeType": "new",
-          "screensAffected": ["DueAmountScreen", "entryService"],
-          "functionalities": [
-            "Do not remove due after repay",
-            "Show single repaid status label"
-          ]
-        }
-      ],
-      "summary": {
-        "buildNumber": 3,
-        "featureChanges": 3,
-        "functionalityChanges": 7
-      },
-      "notes": "Due screen tabs and repaid visibility updates added."
-    },
-    {
-      "buildVersion": "4.0.0",
-      "releaseDate": "2026-03-17",
-      "oldFeatures": [
-        {
-          "featureName": "Keep repaid entries visible with repaid label",
-          "featureVersion": "8.8",
-          "functionalityVersion": "8.8.0",
-          "changeType": "existing",
-          "screensAffected": ["DueAmountScreen"],
-          "functionalities": ["Visible repaid data without strict linking"]
-        }
-      ],
-      "updatedFeatures": [
-        {
-          "featureName": "Link due and repayment by reference id and grouped rows",
-          "featureVersion": "8.9",
-          "functionalityVersion": "8.9.1",
-          "changeType": "updated",
-          "screensAffected": ["DueAmountScreen", "entryService", "database"],
-          "functionalities": [
-            "Add repayment_for_entry_id linkage",
-            "Fallback grouping for old repayment records"
-          ]
-        }
-      ],
-      "newFeatures": [
-        {
-          "featureName": "Use dedicated due grouped row component",
-          "featureVersion": "8.10",
-          "functionalityVersion": "8.10.0",
-          "changeType": "new",
-          "screensAffected": ["DueAmountScreen", "DueGroupedEntryRow"],
-          "functionalities": [
-            "Double-height single card for due + repay details",
-            "Shared delete/status/repay actions in one row"
+            "CMake explicitly links libc++_shared for expo-modules-core and react-native-screens",
+            "Local assembleRelease succeeds on Windows with NDK 27"
           ]
         }
       ],
       "summary": {
         "buildNumber": 4,
-        "featureChanges": 2,
-        "functionalityChanges": 4
+        "featureChanges": 1,
+        "functionalityChanges": 2
       },
-      "notes": "Due and repay verification improved with linked ids and custom grouped component."
+      "notes": "Local release APK generation on Windows: postinstall applies NDK 27 / ld.lld libc++ link fix for native modules."
     },
     {
-      "buildVersion": "5.0.0",
-      "releaseDate": "2026-03-17",
-      "oldFeatures": [
-        {
-          "featureName": "Navigation And Entry UX",
-          "featureVersion": "13.4",
-          "functionalityVersion": "13.4.0",
-          "changeType": "existing",
-          "screensAffected": ["EntryDetailScreen"],
-          "functionalities": ["Pre-existing UX baseline"]
-        }
-      ],
+      "buildVersion": "1.0.8.11.4",
+      "releaseDate": "2026-03-21",
+      "oldFeatures": [],
       "updatedFeatures": [],
       "newFeatures": [
         {
-          "featureName": "Support landscape orientation across app",
-          "featureVersion": "13.5",
-          "functionalityVersion": "13.5.0",
+          "featureName": "Google Drive OAuth return on Android",
+          "featureVersion": "16.3",
+          "functionalityVersion": "16.3.0",
           "changeType": "new",
-          "screensAffected": ["app.json"],
+          "screensAffected": [
+            "SettingsScreen",
+            "RestoreBackupScreen",
+            "App.js",
+            "app.config.js"
+          ],
           "functionalities": [
-            "Set orientation to default",
-            "Allow portrait and landscape"
+            "Register Google OAuth redirect scheme in AndroidManifest via intentFilters",
+            "Complete auth session from app entry",
+            "Avoid false failure while authorization code is exchanged for tokens"
           ]
         }
       ],
       "summary": {
         "buildNumber": 5,
         "featureChanges": 1,
-        "functionalityChanges": 2
+        "functionalityChanges": 3
       },
-      "notes": "Orientation updated to support landscape."
+      "notes": "Fix Google connect: after browser login, Android now reopens the app on the OAuth redirect URI."
     },
     {
-      "buildVersion": "6.0.0",
-      "releaseDate": "2026-03-17",
-      "oldFeatures": [
-        {
-          "featureName": "Home Dashboard And Quick Actions",
-          "featureVersion": "12.3",
-          "functionalityVersion": "12.3.0",
-          "changeType": "existing",
-          "screensAffected": ["HomeScreen", "ExpenseListScreen", "EarningListScreen"],
-          "functionalities": ["Separate earning/expense list tabs existed in bottom navigation"]
-        }
-      ],
+      "buildVersion": "1.0.8.11.5",
+      "releaseDate": "2026-03-21",
+      "oldFeatures": [],
       "updatedFeatures": [
         {
-          "featureName": "Home dashboard entries section",
-          "featureVersion": "12.4",
-          "functionalityVersion": "12.4.1",
+          "featureName": "Google Drive OAuth return on Android",
+          "featureVersion": "16.3",
+          "functionalityVersion": "16.3.0",
           "changeType": "updated",
-          "screensAffected": ["HomeScreen", "BottomTabNavigator"],
+          "screensAffected": [
+            "release-builds workflow",
+            "scripts/copy-release-apk.mjs",
+            ".cursor/rules"
+          ],
           "functionalities": [
-            "Remove separate Earnings and Expenses bottom tabs",
-            "Keep entry management inside Home"
+            "Document and automate APK naming under release-builds per five-part version",
+            "QA completed on device; changes ready for GitHub"
           ]
         }
       ],
-      "newFeatures": [
-        {
-          "featureName": "Home tabs for all earning and expense entries",
-          "featureVersion": "12.4",
-          "functionalityVersion": "12.4.0",
-          "changeType": "new",
-          "screensAffected": ["HomeScreen", "BottomTabNavigator"],
-          "functionalities": [
-            "All tab in Home",
-            "Earning tab in Home",
-            "Expense tab in Home"
-          ]
-        },
-        {
-          "featureName": "Home period filter for month year and all",
-          "featureVersion": "12.5",
-          "functionalityVersion": "12.5.0",
-          "changeType": "new",
-          "screensAffected": ["HomeScreen", "entryService"],
-          "functionalities": [
-            "Month/Year/All filter chips",
-            "Scope-aware summary and entries queries",
-            "Month/year navigator controls by scope"
-          ]
-        }
-      ],
+      "newFeatures": [],
       "summary": {
         "buildNumber": 6,
-        "featureChanges": 3,
-        "functionalityChanges": 8
+        "featureChanges": 0,
+        "functionalityChanges": 2
       },
-      "notes": "Home consolidated as unified entries hub with tabs and period filters."
+      "notes": "Post-QA: verified Google OAuth return and local release flow; package version aligned for Git push."
     }
   ]
 }

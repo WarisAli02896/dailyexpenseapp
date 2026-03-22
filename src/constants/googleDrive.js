@@ -7,6 +7,7 @@ const androidClientIdWithoutDomain = GOOGLE_AUTH_CONFIG.androidClientId.replace(
   '.apps.googleusercontent.com',
   ''
 );
+/** OAuth redirect used by expo-auth-session on Android; must stay in sync with app.config.js intentFilters. */
 export const GOOGLE_NATIVE_REDIRECT_URI = `com.googleusercontent.apps.${androidClientIdWithoutDomain}:/oauthredirect`;
 
 export const DRIVE_APPDATA_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';

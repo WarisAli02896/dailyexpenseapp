@@ -449,6 +449,22 @@
             "Keep single status label for pending or repaid",
             "Show mark-repaid action only when pending"
           ]
+        },
+        {
+          "featureName": "Repay due with two-sided account posting",
+          "version": "8.11",
+          "screensIncluded": [
+            "DueAmountScreen",
+            "DueAccountDetailScreen",
+            "entryService"
+          ],
+          "functionalities": [
+            "Create repayment credit entry for the From account",
+            "Create mirrored repayment debit entry for the To account",
+            "Commit both repayment entries in one transaction",
+            "Keep due entry marked repaid after posting both sides",
+            "Delete linked repayment entries together by reference id"
+          ]
         }
       ]
     },
@@ -870,6 +886,52 @@
             "Save profile updates",
             "Show success feedback",
             "Show error feedback"
+          ]
+        }
+      ]
+    },
+    {
+      "featureName": "Database Initialization And Migration",
+      "version": "16.0",
+      "childFeatures": [
+        {
+          "featureName": "Initialize database safely across web and native",
+          "version": "16.1",
+          "screensIncluded": [
+            "database"
+          ],
+          "functionalities": [
+            "Fallback when WAL mode is unsupported",
+            "Disable foreign keys before schema reset",
+            "Drop dependent tables before parent tables during reset",
+            "Re-enable foreign keys after reset",
+            "Prevent startup crash during database initialization"
+          ]
+        },
+        {
+          "featureName": "Android local release on Windows (NDK 27 libc++ link)",
+          "version": "16.2",
+          "screensIncluded": [
+            "android native build"
+          ],
+          "functionalities": [
+            "Postinstall script patches expo-modules-core and react-native-screens CMake to link c++_shared",
+            "Avoid ld.lld undefined __cxa_* / std:: symbols when assembling release APK on Windows"
+          ]
+        },
+        {
+          "featureName": "Google Drive OAuth return on Android",
+          "version": "16.3",
+          "screensIncluded": [
+            "SettingsScreen",
+            "RestoreBackupScreen",
+            "app.config.js"
+          ],
+          "functionalities": [
+            "Android intent filter for com.googleusercontent.apps redirect URI after Google sign-in",
+            "maybeCompleteAuthSession at app root so browser hands off to the app reliably",
+            "Wait for auth code exchange before treating Google connect as failed",
+            "expo-crypto installed as required peer for expo-auth-session"
           ]
         }
       ]

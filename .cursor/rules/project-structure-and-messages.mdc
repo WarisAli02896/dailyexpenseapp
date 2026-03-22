@@ -1,35 +1,172 @@
 ---
-description: Enforce project-structure check and centralized messages directory usage
+description: Enforce feature and release version tracking
 alwaysApply: true
 ---
 
-# Project Structure And Messages Rules
+# Tracking Files Setup Guide
 
-## Project structure first
+This rule file defines how to maintain:
+- `feature-version-template.json`
+- `release-tracking.json`
+- `package.json` version
 
-- Before setting up or changing anything, check the project folder structure and place files in the correct location.
-- Do not assume paths; verify existing directories before creating new files or folders.
+Use this guide for all contributors so versioning stays consistent.
 
-## Messages directory convention
+# 1) Feature Tracking File Format
 
-- Keep success/error text for API, database, server, and model responses in `/messages`.
-- Prefer importing message constants from `/messages` files instead of hardcoding user-facing response strings in services, models, or controllers.
+`feature-version-template.json` is the source of truth for feature and functionality versions.
 
-## Feature and release tracking
+Expected structure:
+- Top level:
+  - `project`: string
+  - `features`: array
+- Each feature item:
+  - `featureName`: string
+  - `version`: `x.0` style (example: `8.0`, `15.0`)
+  - `childFeatures`: array
+- Each child feature item:
+  - `featureName`: string
+  - `version`: `x.y` style (example: `8.6`, `15.2`)
+  - `screensIncluded`: array of screen/module names
+  - `functionalities`: array of behavior-level bullet lines
 
-- Follow this version tracking file: `feature-version-template.json`.
-- If any new feature or child feature is added, update `feature-version-template.json`.
-- After updating any feature, always ask user whether to create a build.
+Template:
 
-## Release APK naming
-
-- Use this release APK naming format: `app-release-vx.x-date-time.apk`.
-- Keep `vx.x` aligned with the release/app version used for that build.
-- Keep `date-time` in a sortable format (for example: `YYYYMMDD-HHMM`).
-
-## Example
-
-```js
-// Good: centralized message usage
-import { API_SUCCESS, API_ERROR } from '../messages/commonMessages';
+```json
+{
+  "featureName": "Main Feature Name",
+  "version": "16.0",
+  "childFeatures": [
+    {
+      "featureName": "Specific child feature",
+      "version": "16.1",
+      "screensIncluded": ["SomeScreen"],
+      "functionalities": [
+        "Behavior 1",
+        "Behavior 2"
+      ]
+    }
+  ]
+}
 ```
+
+Rules:
+- Before coding a new feature/function, find matching feature in `feature-version-template.json`.
+- If feature exists, add/update the correct child feature entry.
+- If feature does not exist, add a new main feature with next major `x.0`.
+- Keep names clear and stable (no duplicate meaning with different naming).
+
+# 2) Release Tracking File Format
+
+`release-tracking.json` is the release changelog using 5-part versioning.
+
+Version format:
+- `x.x.x.x.x`
+  - 1st `x` = release number (update only when user says release is successful)
+  - 2nd `x` = build number (update only after build is created successfully)
+  - 3rd `x` = feature part from feature tracking
+  - 4th `x` = functionality part from feature tracking
+  - 5th `x` = increment for each change in same functionality line
+
+Version example (must follow):
+- Prefix meaning:
+  - `x.x` = build scope
+  - `x.x.x` = build + feature scope
+  - `x.x.x.x` = build + feature + functionality scope
+  - `x.x.x.x.x` = final release-tracking version with change increment
+- Example sequence:
+  - first change: `1.0.8.11.1`
+  - second change: `1.0.8.11.2`
+  - third change: `1.0.8.11.3`
+- In this example, first `x` (`1`) changes only after user confirms release success.
+
+Expected structure:
+- Top level:
+  - `project`
+  - `versioning` object
+  - `releases` array
+- Each release item:
+  - `buildVersion` (must be `x.x.x.x.x`)
+  - `releaseDate` (`YYYY-MM-DD`)
+  - `oldFeatures` array
+  - `updatedFeatures` array
+  - `newFeatures` array
+  - `summary` object:
+    - `buildNumber`
+    - `featureChanges`
+    - `functionalityChanges`
+  - `notes` string
+
+Release feature item format:
+- `featureName`
+- `featureVersion` (`x.x`, must match `feature-version-template.json`)
+- `functionalityVersion` (`x.x.x`, must match `feature-version-template.json`)
+- `changeType` (`existing` | `updated` | `new`)
+- `screensAffected` array
+- `functionalities` array
+
+Template:
+
+```json
+{
+  "buildVersion": "1.0.0.0.0",
+  "releaseDate": "2026-03-20",
+  "oldFeatures": [],
+  "updatedFeatures": [],
+  "newFeatures": [],
+  "summary": {
+    "buildNumber": 1,
+    "featureChanges": 0,
+    "functionalityChanges": 0
+  },
+  "notes": "Release note text"
+}
+```
+
+# 3) Version Mapping Rules (Must Follow)
+
+- `release-tracking.json` `featureVersion` must exist in `feature-version-template.json`.
+- `release-tracking.json` `functionalityVersion` must map to the same feature line in `feature-version-template.json`.
+- For each new code change, increment only the 5th segment in `buildVersion` when staying in same feature/functionality branch.
+- Start baseline from `1.0.0.0.0`.
+- Use mapping pattern: `release.build.feature.functionality.increment`.
+- Update 2nd segment only after build creation succeeds.
+- Update 1st segment only when user explicitly says release is successful.
+
+# 4) Contributor Workflow
+
+For every feature/functionality code change:
+1. Check `feature-version-template.json` and locate target feature/functionality.
+2. Add or update feature/child-feature entry if required.
+3. Add a matching release entry in `release-tracking.json`.
+4. Keep `featureVersion` and `functionalityVersion` aligned between both files.
+5. Update `summary` counts and `notes` in release entry.
+6. After user confirms testing and requests push, set `package.json` `version` to the final `buildVersion`.
+
+# 5) Package Version Rule
+
+- `package.json` `version` must follow same `x.x.x.x.x` release version.
+- Update `package.json` version only when user confirms tested update and asks to push.
+- Whenever code is pushed to GitHub, update full `x.x.x.x.x` version (and keep `package.json` + `release-tracking.json` aligned).
+
+# 6) Release APK naming (local or copied from Gradle output)
+
+Use this format when saving a release APK under `release-builds/` (or when renaming `android/app/build/outputs/apk/release/app-release.apk`):
+
+```
+app-release-v{x.x.x.x.x}-{YYYYMMDD}-{HHMM}.apk
+```
+
+Rules:
+
+- **`v{x.x.x.x.x}`** — full **five-part** version from `package.json` (same as latest `buildVersion` in `release-tracking.json`).  
+  Do **not** use `app.json` `version` / `versionCode` (e.g. marketing `6.2`) for this filename.
+- **`{YYYYMMDD}-{HHMM}`** — sortable local date and time when the APK was produced (24-hour clock), e.g. `20260321-1101`.
+
+Examples:
+
+- `app-release-v1.0.8.11.4-20260321-1101.apk`
+
+After `assembleRelease`, you can copy with the correct name using:
+
+- `npm run release:copy-apk` (runs `scripts/copy-release-apk.mjs` using `package.json` `version` and current local time).

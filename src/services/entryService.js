@@ -152,8 +152,10 @@ export const repayDueEntry = async ({ userId, dueEntryId }) => {
   try {
     const db = await getDBConnection();
     const dueEntry = await db.getFirstAsync(
-      `SELECT e.id, e.title, e.amount, e.notes, e.person_id, e.due_to_person_id, p_to.name as due_to_person_name
+      `SELECT e.id, e.title, e.amount, e.notes, e.person_id, e.due_to_person_id,
+              p_to.name as due_to_person_name, p_from.name as from_person_name
        FROM entries e
+       LEFT JOIN persons p_from ON e.person_id = p_from.id
        LEFT JOIN persons p_to ON e.due_to_person_id = p_to.id
        WHERE e.id = ? AND e.user_id = ? AND e.type = 'spending' AND e.entry_type = 'due' AND e.is_due_on_account = 1`,
       [dueEntryId, userId]
@@ -164,7 +166,9 @@ export const repayDueEntry = async ({ userId, dueEntryId }) => {
     }
 
     const dateStr = formatDateForDB(new Date());
+    const repaymentAmount = Number(dueEntry.amount || 0);
     const repaymentTitle = `Repaid from ${dueEntry.due_to_person_name || 'Account'}`;
+    const repaymentDebitTitle = `Repayment paid to ${dueEntry.from_person_name || 'Account'}`;
     const repaymentNotes = dueEntry.notes
       ? `Repayment for due entry: ${dueEntry.notes}`
       : 'Repayment for due-on-account entry';
@@ -182,11 +186,31 @@ export const repayDueEntry = async ({ userId, dueEntryId }) => {
         'earning',
         'repayment',
         repaymentTitle,
-        Number(dueEntry.amount || 0),
+        repaymentAmount,
         dateStr,
         repaymentNotes,
         dueEntry.person_id || null,
         dueEntry.due_to_person_id || null,
+        dueEntry.id,
+        1,
+        0,
+      ]
+    );
+
+    // Mirror the repayment on borrower side so account balances stay consistent.
+    await db.runAsync(
+      `INSERT INTO entries (user_id, type, entry_type, title, amount, date, notes, person_id, due_to_person_id, repayment_for_entry_id, show_in_account, is_due_on_account)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userId,
+        'spending',
+        'repayment',
+        repaymentDebitTitle,
+        repaymentAmount,
+        dateStr,
+        repaymentNotes,
+        dueEntry.due_to_person_id || null,
+        null,
         dueEntry.id,
         1,
         0,
@@ -460,9 +484,47 @@ export const transferBetweenAccounts = async ({
 export const deleteEntry = async (entryId) => {
   try {
     const db = await getDBConnection();
-    await db.runAsync('DELETE FROM entries WHERE id = ?', [entryId]);
+    const targetEntry = await db.getFirstAsync(
+      `SELECT id, entry_type, repayment_for_entry_id
+       FROM entries
+       WHERE id = ?`,
+      [entryId]
+    );
+
+    if (!targetEntry) {
+      return { success: true, message: ENTRY_MESSAGES.DELETE_SUCCESS };
+    }
+
+    await db.execAsync('BEGIN TRANSACTION');
+
+    if (targetEntry.entry_type === 'due') {
+      await db.runAsync(
+        `DELETE FROM entries
+         WHERE repayment_for_entry_id = ?
+           AND entry_type = 'repayment'`,
+        [targetEntry.id]
+      );
+      await db.runAsync('DELETE FROM entries WHERE id = ?', [targetEntry.id]);
+    } else if (targetEntry.entry_type === 'repayment' && targetEntry.repayment_for_entry_id) {
+      await db.runAsync(
+        `DELETE FROM entries
+         WHERE repayment_for_entry_id = ?
+           AND entry_type = 'repayment'`,
+        [targetEntry.repayment_for_entry_id]
+      );
+    } else {
+      await db.runAsync('DELETE FROM entries WHERE id = ?', [targetEntry.id]);
+    }
+
+    await db.execAsync('COMMIT');
     return { success: true, message: ENTRY_MESSAGES.DELETE_SUCCESS };
   } catch (error) {
+    try {
+      const db = await getDBConnection();
+      await db.execAsync('ROLLBACK');
+    } catch {
+      // Ignore rollback failure.
+    }
     console.error('Delete Entry Error:', error);
     return { success: false, message: ENTRY_MESSAGES.DELETE_FAILED };
   }

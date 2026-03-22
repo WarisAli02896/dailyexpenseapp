@@ -13,7 +13,12 @@ export const getDBConnection = async () => {
 };
 
 const enableWAL = async (database) => {
-  await database.execAsync('PRAGMA journal_mode = WAL;');
+  try {
+    await database.execAsync('PRAGMA journal_mode = WAL;');
+  } catch (error) {
+    // WAL is not supported in some environments (for example web), continue with default mode.
+    console.warn('WAL mode unavailable, using default journal mode:', error?.message || error);
+  }
 };
 
 export const initializeDatabase = async () => {
@@ -23,15 +28,18 @@ export const initializeDatabase = async () => {
   const currentVersion = versionResult?.user_version ?? 0;
 
   if (currentVersion < DB_VERSION) {
-    await database.execAsync('DROP TABLE IF EXISTS users');
+    // Reset schema safely during version upgrades.
+    await database.execAsync('PRAGMA foreign_keys = OFF;');
     await database.execAsync('DROP TABLE IF EXISTS expenses');
     await database.execAsync('DROP TABLE IF EXISTS entries');
     await database.execAsync('DROP TABLE IF EXISTS budgets');
+    await database.execAsync('DROP TABLE IF EXISTS recurring_templates');
     await database.execAsync('DROP TABLE IF EXISTS categories');
     await database.execAsync('DROP TABLE IF EXISTS persons');
     await database.execAsync('DROP TABLE IF EXISTS sources');
-    await database.execAsync('DROP TABLE IF EXISTS recurring_templates');
+    await database.execAsync('DROP TABLE IF EXISTS users');
     await database.execAsync(`PRAGMA user_version = ${DB_VERSION}`);
+    await database.execAsync('PRAGMA foreign_keys = ON;');
   }
 
   await database.execAsync(`

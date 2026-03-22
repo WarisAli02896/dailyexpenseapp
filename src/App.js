@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import * as WebBrowser from 'expo-web-browser';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+/** Close in-app browser and complete OAuth when returning via deep link (any screen). */
+WebBrowser.maybeCompleteAuthSession();
 import { AuthProvider } from './context/AuthContext';
 import RootNavigator from './navigation';
 import SnackbarHost from './components/common/SnackbarHost';
