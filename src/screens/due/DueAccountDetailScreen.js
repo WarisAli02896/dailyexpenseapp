@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import DueGroupedEntryRow from '../../components/due/DueGroupedEntryRow';
+import DueAmountEditModal from '../../components/due/DueAmountEditModal';
 import { COLORS } from '../../constants/colors';
 import { FONTS } from '../../constants/fonts';
 import { useAuth } from '../../hooks/useAuth';
@@ -30,6 +31,7 @@ const DueAccountDetailScreen = ({ route, navigation }) => {
 
   const [entries, setEntries] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [amountEditGroup, setAmountEditGroup] = useState(null);
 
   const groupedEntries = useMemo(() => {
     const dueEntries = entries.filter((e) => e.entry_type === 'due');
@@ -166,6 +168,7 @@ const DueAccountDetailScreen = ({ route, navigation }) => {
         onPress={() => navigation.navigate('EntryDetail', { entry: due })}
         onDelete={() => handleDeleteGroup(item)}
         onRepay={() => handleRepay(due)}
+        onEditAmounts={() => setAmountEditGroup(item)}
       />
     );
   };
@@ -214,6 +217,14 @@ const DueAccountDetailScreen = ({ route, navigation }) => {
             tintColor={COLORS.warning}
           />
         }
+      />
+
+      <DueAmountEditModal
+        visible={Boolean(amountEditGroup)}
+        onClose={() => setAmountEditGroup(null)}
+        userId={user?.id}
+        group={amountEditGroup}
+        onSaved={loadData}
       />
     </View>
   );

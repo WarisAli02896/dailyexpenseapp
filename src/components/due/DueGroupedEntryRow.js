@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
 import { FONTS } from '../../constants/fonts';
 import { formatAmount } from '../../utils/currencyUtils';
+import { DUE_MESSAGES } from '../../messages/dueMessages';
 
 const formatDayMonth = (value) => {
   if (!value) return '-';
@@ -19,6 +20,7 @@ const DueGroupedEntryRow = ({
   onPress,
   onDelete,
   onRepay,
+  onEditAmounts,
 }) => {
   const isRepaid = Boolean(latestRepayment) || due.is_due_on_account === 0;
 
@@ -59,7 +61,23 @@ const DueGroupedEntryRow = ({
           <Text style={styles.rowLabel}>Given</Text>
           <Text style={styles.rowDate}>Due {formatDayMonth(due.due_date || due.date)}</Text>
         </View>
-        <Text style={styles.givenAmount}>- Rs. {formatAmount(due.amount)}</Text>
+        <View style={styles.amountRowRight}>
+          <Text style={styles.givenAmount}>- Rs. {formatAmount(due.amount)}</Text>
+          {onEditAmounts ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                onEditAmounts();
+              }}
+              hitSlop={8}
+              style={({ pressed }) => [styles.editAmountBtn, pressed && { opacity: 0.7 }]}
+              accessibilityRole="button"
+              accessibilityLabel={DUE_MESSAGES.EDIT_AMOUNTS}
+            >
+              <Ionicons name="create-outline" size={18} color={COLORS.warning} />
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       <View style={styles.detailRow}>
@@ -152,6 +170,14 @@ const styles = StyleSheet.create({
   rowDate: {
     color: COLORS.textSecondary,
     fontSize: FONTS.sizes.xs,
+  },
+  amountRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  editAmountBtn: {
+    padding: 4,
   },
   givenAmount: {
     color: COLORS.expense,

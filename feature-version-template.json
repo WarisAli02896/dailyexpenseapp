@@ -482,6 +482,27 @@
             "Pass active filter into account detail when opened from Accounts tab",
             "Centralize filter-related user-facing strings in dueMessages"
           ]
+        },
+        {
+          "featureName": "Edit given and returned amounts on due entries",
+          "version": "8.13",
+          "screensIncluded": [
+            "DueAmountScreen",
+            "DueAccountDetailScreen",
+            "DueGroupedEntryRow",
+            "DueAmountEditModal",
+            "EntryDetailScreen",
+            "entryService",
+            "dueMessages"
+          ],
+          "functionalities": [
+            "Open edit modal from due grouped row to change given (from) amount",
+            "When a single linked repayment exists, edit returned amount and sync earning and spending repayment rows",
+            "Block returned edits when multiple repayments are linked and surface dueMessages guidance",
+            "Persist updates in a transaction via updateDueGroupedAmounts",
+            "Entry detail edit: change From and To accounts for due entries with repayment row sync",
+            "getEntryForDetail and updateEntry joins for person_name, from_person_name, and due_to_person_name"
+          ]
         }
       ]
     },

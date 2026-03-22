@@ -1,6 +1,7 @@
 import { getDBConnection } from './database';
 import { formatDateForDB } from '../utils/dateUtils';
 import { ENTRY_MESSAGES } from '../../messages/entryMessages';
+import { DUE_MESSAGES } from '../../messages/dueMessages';
 
 const buildPeriodFilter = (dateExpression, month, year) => {
   const mm = String(month).padStart(2, '0');
@@ -262,6 +263,74 @@ export const repayDueEntry = async ({ userId, dueEntryId }) => {
   }
 };
 
+/**
+ * Update due principal ("given") and optionally all linked repayment rows (earning + spending mirror).
+ * Returned amount is only applied when there is exactly one repayment event (one earning repayment linked to this due).
+ */
+export const updateDueGroupedAmounts = async ({ userId, dueEntryId, givenAmount, returnedAmount }) => {
+  try {
+    const db = await getDBConnection();
+    const due = await db.getFirstAsync(
+      `SELECT id, user_id, entry_type FROM entries WHERE id = ?`,
+      [dueEntryId]
+    );
+    if (!due || Number(due.user_id) !== Number(userId) || due.entry_type !== 'due') {
+      return { success: false, message: ENTRY_MESSAGES.UPDATE_FAILED };
+    }
+
+    const given = Number(givenAmount);
+    if (!Number.isFinite(given) || given <= 0) {
+      return { success: false, message: DUE_MESSAGES.AMOUNT_POSITIVE };
+    }
+
+    const repaymentRows = await db.getAllAsync(
+      `SELECT id, type FROM entries
+       WHERE repayment_for_entry_id = ? AND entry_type = 'repayment'`,
+      [dueEntryId]
+    );
+    const earningRepayments = repaymentRows.filter((r) => r.type === 'earning');
+
+    const shouldUpdateReturned =
+      returnedAmount !== undefined && returnedAmount !== null && String(returnedAmount).trim() !== '';
+
+    if (shouldUpdateReturned) {
+      const ret = Number(returnedAmount);
+      if (!Number.isFinite(ret) || ret <= 0) {
+        return { success: false, message: DUE_MESSAGES.AMOUNT_POSITIVE };
+      }
+      if (earningRepayments.length === 0) {
+        return { success: false, message: DUE_MESSAGES.RETURN_AMOUNT_NO_REPAY };
+      }
+      if (earningRepayments.length > 1) {
+        return { success: false, message: DUE_MESSAGES.RETURN_AMOUNT_MULTI_REPAY };
+      }
+    }
+
+    await db.execAsync('BEGIN TRANSACTION');
+    await db.runAsync(`UPDATE entries SET amount = ? WHERE id = ?`, [given, dueEntryId]);
+
+    if (shouldUpdateReturned) {
+      const ret = Number(returnedAmount);
+      await db.runAsync(
+        `UPDATE entries SET amount = ? WHERE repayment_for_entry_id = ? AND entry_type = 'repayment'`,
+        [ret, dueEntryId]
+      );
+    }
+
+    await db.execAsync('COMMIT');
+    return { success: true, message: ENTRY_MESSAGES.UPDATE_SUCCESS };
+  } catch (error) {
+    try {
+      const db = await getDBConnection();
+      await db.execAsync('ROLLBACK');
+    } catch {
+      // ignore
+    }
+    console.error('Update Due Grouped Amounts Error:', error);
+    return { success: false, message: ENTRY_MESSAGES.UPDATE_FAILED };
+  }
+};
+
 export const getEntriesByEntryType = async (userId, entryType, month, year) => {
   try {
     const db = await getDBConnection();
@@ -380,46 +449,117 @@ export const getSummaryForHome = async ({ userId, scope = 'month', month, year }
   }
 };
 
-export const updateEntry = async (entryId, fields) => {
+const selectEntryDetailRow = async (db, entryId) =>
+  db.getFirstAsync(
+    `SELECT e.*,
+            c.name as category_name, c.icon as category_icon, c.color as category_color,
+            p_from.name as person_name,
+            p_to.name as due_to_person_name,
+            p_from.name as from_person_name,
+            s.name as source_name
+     FROM entries e
+     LEFT JOIN categories c ON e.category_id = c.id
+     LEFT JOIN persons p_from ON e.person_id = p_from.id
+     LEFT JOIN persons p_to ON e.due_to_person_id = p_to.id
+     LEFT JOIN sources s ON e.source_id = s.id
+     WHERE e.id = ?`,
+    [entryId]
+  );
+
+/**
+ * Full entry row for detail screen (from + to person names for due entries).
+ */
+export const getEntryForDetail = async (userId, entryId) => {
   try {
     const db = await getDBConnection();
-    const setClauses = [];
-    const values = [];
-
-    if (fields.type !== undefined) { setClauses.push('type = ?'); values.push(fields.type); }
-    if (fields.entryType !== undefined) { setClauses.push('entry_type = ?'); values.push(fields.entryType); }
-    if (fields.title !== undefined) { setClauses.push('title = ?'); values.push(fields.title); }
-    if (fields.amount !== undefined) { setClauses.push('amount = ?'); values.push(fields.amount); }
-    if (fields.companyName !== undefined) { setClauses.push('company_name = ?'); values.push(fields.companyName || null); }
-    if (fields.notes !== undefined) { setClauses.push('notes = ?'); values.push(fields.notes || null); }
-    if (fields.dueDate !== undefined) { setClauses.push('due_date = ?'); values.push(fields.dueDate || null); }
-    if (fields.isRecurring !== undefined) { setClauses.push('is_recurring = ?'); values.push(fields.isRecurring ? 1 : 0); }
-    if (fields.invoiceUri !== undefined) { setClauses.push('invoice_uri = ?'); values.push(fields.invoiceUri || null); }
-    if (fields.invoiceType !== undefined) { setClauses.push('invoice_type = ?'); values.push(fields.invoiceType || null); }
-    if (fields.invoiceUri2 !== undefined) { setClauses.push('invoice_uri_2 = ?'); values.push(fields.invoiceUri2 || null); }
-    if (fields.invoiceType2 !== undefined) { setClauses.push('invoice_type_2 = ?'); values.push(fields.invoiceType2 || null); }
-    if (fields.sourceId !== undefined) { setClauses.push('source_id = ?'); values.push(fields.sourceId || null); }
-    if (fields.showInAccount !== undefined) { setClauses.push('show_in_account = ?'); values.push(fields.showInAccount ? 1 : 0); }
-
-    if (setClauses.length === 0) {
-      return { success: false, message: ENTRY_MESSAGES.NO_FIELDS_TO_UPDATE };
-    }
-
-    values.push(entryId);
-    await db.runAsync(`UPDATE entries SET ${setClauses.join(', ')} WHERE id = ?`, values);
-
-    const updated = await db.getFirstAsync(
-      `SELECT e.*, c.name as category_name, c.icon as category_icon, c.color as category_color, p.name as person_name, s.name as source_name
+    const row = await db.getFirstAsync(
+      `SELECT e.*,
+              c.name as category_name, c.icon as category_icon, c.color as category_color,
+              p_from.name as person_name,
+              p_to.name as due_to_person_name,
+              p_from.name as from_person_name,
+              s.name as source_name
        FROM entries e
        LEFT JOIN categories c ON e.category_id = c.id
-       LEFT JOIN persons p ON e.person_id = p.id
+       LEFT JOIN persons p_from ON e.person_id = p_from.id
+       LEFT JOIN persons p_to ON e.due_to_person_id = p_to.id
        LEFT JOIN sources s ON e.source_id = s.id
-       WHERE e.id = ?`,
-      [entryId]
+       WHERE e.id = ? AND e.user_id = ?`,
+      [entryId, userId]
     );
+    if (!row) {
+      return { success: false, data: null, message: ENTRY_MESSAGES.UPDATE_FAILED };
+    }
+    return { success: true, data: row };
+  } catch (error) {
+    console.error('Get Entry For Detail Error:', error);
+    return { success: false, data: null, message: ENTRY_MESSAGES.UPDATE_FAILED };
+  }
+};
+
+export const updateEntry = async (entryId, fields) => {
+  const db = await getDBConnection();
+  const setClauses = [];
+  const values = [];
+
+  if (fields.type !== undefined) { setClauses.push('type = ?'); values.push(fields.type); }
+  if (fields.entryType !== undefined) { setClauses.push('entry_type = ?'); values.push(fields.entryType); }
+  if (fields.title !== undefined) { setClauses.push('title = ?'); values.push(fields.title); }
+  if (fields.amount !== undefined) { setClauses.push('amount = ?'); values.push(fields.amount); }
+  if (fields.companyName !== undefined) { setClauses.push('company_name = ?'); values.push(fields.companyName || null); }
+  if (fields.notes !== undefined) { setClauses.push('notes = ?'); values.push(fields.notes || null); }
+  if (fields.dueDate !== undefined) { setClauses.push('due_date = ?'); values.push(fields.dueDate || null); }
+  if (fields.isRecurring !== undefined) { setClauses.push('is_recurring = ?'); values.push(fields.isRecurring ? 1 : 0); }
+  if (fields.invoiceUri !== undefined) { setClauses.push('invoice_uri = ?'); values.push(fields.invoiceUri || null); }
+  if (fields.invoiceType !== undefined) { setClauses.push('invoice_type = ?'); values.push(fields.invoiceType || null); }
+  if (fields.invoiceUri2 !== undefined) { setClauses.push('invoice_uri_2 = ?'); values.push(fields.invoiceUri2 || null); }
+  if (fields.invoiceType2 !== undefined) { setClauses.push('invoice_type_2 = ?'); values.push(fields.invoiceType2 || null); }
+  if (fields.sourceId !== undefined) { setClauses.push('source_id = ?'); values.push(fields.sourceId || null); }
+  if (fields.showInAccount !== undefined) { setClauses.push('show_in_account = ?'); values.push(fields.showInAccount ? 1 : 0); }
+  if (fields.personId !== undefined) { setClauses.push('person_id = ?'); values.push(fields.personId ?? null); }
+  if (fields.dueToPersonId !== undefined) { setClauses.push('due_to_person_id = ?'); values.push(fields.dueToPersonId ?? null); }
+
+  if (setClauses.length === 0) {
+    return { success: false, message: ENTRY_MESSAGES.NO_FIELDS_TO_UPDATE };
+  }
+
+  values.push(entryId);
+
+  try {
+    await db.execAsync('BEGIN TRANSACTION');
+    await db.runAsync(`UPDATE entries SET ${setClauses.join(', ')} WHERE id = ?`, values);
+
+    const syncDueRepayments =
+      fields.personId !== undefined || fields.dueToPersonId !== undefined;
+    if (syncDueRepayments) {
+      const meta = await db.getFirstAsync(
+        `SELECT entry_type, person_id, due_to_person_id FROM entries WHERE id = ?`,
+        [entryId]
+      );
+      if (meta?.entry_type === 'due') {
+        await db.runAsync(
+          `UPDATE entries SET person_id = ?, due_to_person_id = ?
+           WHERE repayment_for_entry_id = ? AND entry_type = 'repayment' AND type = 'earning'`,
+          [meta.person_id, meta.due_to_person_id, entryId]
+        );
+        await db.runAsync(
+          `UPDATE entries SET person_id = ?, due_to_person_id = NULL
+           WHERE repayment_for_entry_id = ? AND entry_type = 'repayment' AND type = 'spending'`,
+          [meta.due_to_person_id, entryId]
+        );
+      }
+    }
+
+    const updated = await selectEntryDetailRow(db, entryId);
+    await db.execAsync('COMMIT');
 
     return { success: true, message: ENTRY_MESSAGES.UPDATE_SUCCESS, data: updated };
   } catch (error) {
+    try {
+      await db.execAsync('ROLLBACK');
+    } catch {
+      // ignore
+    }
     console.error('Update Entry Error:', error);
     return { success: false, message: ENTRY_MESSAGES.UPDATE_FAILED };
   }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,18 +11,22 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Sharing from 'expo-sharing';
 import { COLORS } from '../../constants/colors';
 import { FONTS } from '../../constants/fonts';
 import { ENTRY_TYPES } from '../../constants/categories';
 import { formatAmount } from '../../utils/currencyUtils';
 import { getMonthName, formatTime12h } from '../../utils/dateUtils';
-import { deleteEntry, updateEntry } from '../../services/entryService';
+import { deleteEntry, updateEntry, getEntryForDetail } from '../../services/entryService';
+import { getPersons } from '../../services/personService';
 import { saveInvoice, formatFileSize, getFileType } from '../../services/fileService';
 import { Button, Dropdown, AttachmentPicker } from '../../components/common';
 import { showAlert, showConfirm } from '../../utils/alertUtils';
 import { COMMON_MESSAGES } from '../../messages/commonMessages';
 import { EXPENSE_MESSAGES } from '../../messages/expenseMessages';
+import { DUE_MESSAGES } from '../../messages/dueMessages';
+import { useAuth } from '../../hooks/useAuth';
 
 const TYPE_OPTIONS = [
   { value: 'earning', label: 'Earning', icon: 'arrow-down-circle-outline' },
@@ -36,8 +40,12 @@ const ENTRY_TYPE_OPTIONS = ENTRY_TYPES.map((t) => ({
 }));
 
 const EntryDetailScreen = ({ route, navigation }) => {
+  const { user } = useAuth();
   const { entry: initialEntry } = route.params;
   const [entry, setEntry] = useState(initialEntry);
+  const [personOptions, setPersonOptions] = useState([]);
+  const [editFromPerson, setEditFromPerson] = useState('');
+  const [editToPerson, setEditToPerson] = useState('');
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -56,6 +64,33 @@ const EntryDetailScreen = ({ route, navigation }) => {
 
   const isEarning = entry.type === 'earning';
   const editIsEarning = editType === 'earning';
+
+  useEffect(() => {
+    if (!user?.id || !initialEntry?.id) return undefined;
+    let cancelled = false;
+    (async () => {
+      const res = await getEntryForDetail(user.id, initialEntry.id);
+      if (!cancelled && res.success && res.data) {
+        setEntry(res.data);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, initialEntry?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id) return undefined;
+      (async () => {
+        const r = await getPersons(user.id);
+        if (r.success) {
+          setPersonOptions(r.data.map((p) => ({ value: String(p.id), label: p.name })));
+        }
+      })();
+      return undefined;
+    }, [user?.id])
+  );
   const entryDate = new Date(entry.date);
   const dateDisplay = `${String(entryDate.getDate()).padStart(2, '0')} ${getMonthName(entryDate.getMonth() + 1)} ${entryDate.getFullYear()}`;
   const dueDateDisplay = entry.due_date
@@ -142,6 +177,10 @@ const EntryDetailScreen = ({ route, navigation }) => {
     setEditShowInAccount(entry.show_in_account !== 0);
     setEditInvoice(null);
     setInvoiceRemoved(false);
+    if (entry.entry_type === 'due') {
+      setEditFromPerson(entry.person_id != null ? String(entry.person_id) : '');
+      setEditToPerson(entry.due_to_person_id != null ? String(entry.due_to_person_id) : '');
+    }
     setEditing(true);
   };
 
@@ -171,11 +210,26 @@ const EntryDetailScreen = ({ route, navigation }) => {
     if (!editTitle.trim()) { showAlert('Error', EXPENSE_MESSAGES.ENTRY_TITLE_REQUIRED); return; }
     if (!editAmount.trim() || parseFloat(editAmount) <= 0) { showAlert('Error', EXPENSE_MESSAGES.ENTRY_AMOUNT_INVALID); return; }
 
+    if (entry.entry_type === 'due') {
+      if (!editFromPerson) {
+        showAlert('Error', DUE_MESSAGES.FROM_REQUIRED);
+        return;
+      }
+      if (!editToPerson) {
+        showAlert('Error', DUE_MESSAGES.TO_REQUIRED);
+        return;
+      }
+      if (editFromPerson === editToPerson) {
+        showAlert('Error', DUE_MESSAGES.FROM_TO_DIFFERENT);
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const updateFields = {
-        type: editType,
-        entryType: editEntryType,
+        type: entry.entry_type === 'due' ? 'spending' : editType,
+        entryType: entry.entry_type === 'due' ? 'due' : editEntryType,
         title: editTitle.trim(),
         amount: parseFloat(editAmount),
         companyName: editCompany.trim() || null,
@@ -183,6 +237,11 @@ const EntryDetailScreen = ({ route, navigation }) => {
         isRecurring: editRecurring,
         showInAccount: editShowInAccount,
       };
+
+      if (entry.entry_type === 'due') {
+        updateFields.personId = Number(editFromPerson);
+        updateFields.dueToPersonId = Number(editToPerson);
+      }
 
       if (editInvoice) {
         const savedUri = await saveInvoice(editInvoice.uri, editInvoice.name);
@@ -274,54 +333,70 @@ const EntryDetailScreen = ({ route, navigation }) => {
 
         {editing ? (
           <View>
-            {/* Type Toggle */}
-            <Text style={styles.editFieldLabel}>Type</Text>
-            <View style={styles.toggleRow}>
-              {TYPE_OPTIONS.map((opt) => {
-                const selected = editType === opt.value;
-                const color = opt.value === 'earning' ? COLORS.income : COLORS.expense;
-                return (
-                  <Pressable
-                    key={opt.value}
-                    style={[styles.toggleOption, selected && { backgroundColor: color + '14', borderColor: color }]}
-                    onPress={() => setEditType(opt.value)}
-                    role="button"
-                  >
-                    <Ionicons name={opt.icon} size={18} color={selected ? color : COLORS.textLight} />
-                    <Text style={[styles.toggleOptionText, selected && { color, fontWeight: FONTS.weights.bold }]}>
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            {entry.entry_type === 'due' ? (
+              <>
+                <DetailRow icon="arrow-up-circle-outline" label="Type" value="Spending" />
+                <DetailRow icon="receipt-outline" label="Category" value="Due" />
+                <Dropdown
+                  label={DUE_MESSAGES.EDIT_FROM_ACCOUNT_LABEL}
+                  value={editFromPerson}
+                  options={personOptions}
+                  onSelect={(val) => setEditFromPerson(val)}
+                  placeholder={DUE_MESSAGES.SELECT_FROM_ACCOUNT}
+                />
+                <Dropdown
+                  label={DUE_MESSAGES.EDIT_TO_ACCOUNT_LABEL}
+                  value={editToPerson}
+                  options={personOptions}
+                  onSelect={(val) => setEditToPerson(val)}
+                  placeholder={DUE_MESSAGES.SELECT_TO_ACCOUNT}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={styles.editFieldLabel}>Type</Text>
+                <View style={styles.toggleRow}>
+                  {TYPE_OPTIONS.map((opt) => {
+                    const selected = editType === opt.value;
+                    const color = opt.value === 'earning' ? COLORS.income : COLORS.expense;
+                    return (
+                      <Pressable
+                        key={opt.value}
+                        style={[styles.toggleOption, selected && { backgroundColor: color + '14', borderColor: color }]}
+                        onPress={() => setEditType(opt.value)}
+                        role="button"
+                      >
+                        <Ionicons name={opt.icon} size={18} color={selected ? color : COLORS.textLight} />
+                        <Text style={[styles.toggleOptionText, selected && { color, fontWeight: FONTS.weights.bold }]}>
+                          {opt.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
 
-            {/* Entry Type Dropdown */}
-            <Dropdown
-              label="Category"
-              value={editEntryType}
-              options={ENTRY_TYPE_OPTIONS}
-              onSelect={setEditEntryType}
-              placeholder="Select entry type"
-            />
-
-            {/* Title */}
-            <EditField label="Title" value={editTitle} onChangeText={setEditTitle} placeholder="Entry title" />
-
-            {/* Company */}
-            <EditField label="Company" value={editCompany} onChangeText={setEditCompany} placeholder="Company name (optional)" />
-
-            {/* Account (read-only) */}
-            {entry.person_name && (
-              <DetailRow icon="person-outline" label="Account" value={entry.person_name} />
+                <Dropdown
+                  label="Category"
+                  value={editEntryType}
+                  options={ENTRY_TYPE_OPTIONS}
+                  onSelect={setEditEntryType}
+                  placeholder="Select entry type"
+                />
+              </>
             )}
 
-            {/* Date & Time (read-only) */}
+            <EditField label="Title" value={editTitle} onChangeText={setEditTitle} placeholder="Entry title" />
+
+            <EditField label="Company" value={editCompany} onChangeText={setEditCompany} placeholder="Company name (optional)" />
+
+            {entry.entry_type !== 'due' && entry.person_name ? (
+              <DetailRow icon="person-outline" label="Account" value={entry.person_name} />
+            ) : null}
+
             <DetailRow icon="calendar-outline" label="Date" value={dateDisplay} />
             {dueDateDisplay ? <DetailRow icon="calendar-clear-outline" label="Due Date" value={dueDateDisplay} /> : null}
             {timeDisplay ? <DetailRow icon="time-outline" label="Time" value={timeDisplay} /> : null}
 
-            {/* Recurring Toggle */}
             <View style={styles.recurringRow}>
               <View style={styles.recurringLeft}>
                 <View style={styles.recurringIconWrap}>
@@ -340,29 +415,42 @@ const EntryDetailScreen = ({ route, navigation }) => {
               />
             </View>
 
-            {/* Show in Account Toggle */}
-            <View style={[styles.recurringRow, !entry.person_id && { opacity: 0.5 }]}>
+            <View
+              style={[
+                styles.recurringRow,
+                !(entry.entry_type === 'due' ? editFromPerson : entry.person_id) && { opacity: 0.5 },
+              ]}
+            >
               <View style={styles.recurringLeft}>
                 <View style={styles.recurringIconWrap}>
-                  <Ionicons name="eye-outline" size={18} color={entry.person_id ? accentColor : COLORS.textLight} />
+                  <Ionicons
+                    name="eye-outline"
+                    size={18}
+                    color={(entry.entry_type === 'due' ? editFromPerson : entry.person_id) ? accentColor : COLORS.textLight}
+                  />
                 </View>
                 <View>
                   <Text style={styles.recurringLabel}>Show in Account</Text>
                   <Text style={styles.recurringHint}>
-                    {entry.person_id ? 'Visible in account profile' : 'No account linked'}
+                    {(entry.entry_type === 'due' ? editFromPerson : entry.person_id)
+                      ? 'Visible in account profile'
+                      : 'No account linked'}
                   </Text>
                 </View>
               </View>
               <Switch
-                value={entry.person_id ? editShowInAccount : false}
+                value={(entry.entry_type === 'due' ? editFromPerson : entry.person_id) ? editShowInAccount : false}
                 onValueChange={setEditShowInAccount}
-                disabled={!entry.person_id}
+                disabled={!(entry.entry_type === 'due' ? editFromPerson : entry.person_id)}
                 trackColor={{ false: COLORS.border, true: accentColor + '80' }}
-                thumbColor={entry.person_id && editShowInAccount ? accentColor : COLORS.textLight}
+                thumbColor={
+                  (entry.entry_type === 'due' ? editFromPerson : entry.person_id) && editShowInAccount
+                    ? accentColor
+                    : COLORS.textLight
+                }
               />
             </View>
 
-            {/* Notes */}
             <EditField label="Notes" value={editNotes} onChangeText={setEditNotes} placeholder="Add notes (optional)" multiline />
           </View>
         ) : (
@@ -370,7 +458,22 @@ const EntryDetailScreen = ({ route, navigation }) => {
             <DetailRow icon="document-text-outline" label="Title" value={entry.title} />
             <DetailRow icon="briefcase-outline" label="Type" value={entryTypeLabel(entry.entry_type)} />
             {entry.company_name ? <DetailRow icon="business-outline" label="Company" value={entry.company_name} /> : null}
-            {entry.person_name ? <DetailRow icon="person-outline" label="Account" value={entry.person_name} /> : null}
+            {entry.entry_type === 'due' ? (
+              <>
+                <DetailRow
+                  icon="arrow-up-circle-outline"
+                  label={DUE_MESSAGES.EDIT_FROM_ACCOUNT_LABEL}
+                  value={entry.from_person_name || entry.person_name || '—'}
+                />
+                <DetailRow
+                  icon="arrow-down-circle-outline"
+                  label={DUE_MESSAGES.EDIT_TO_ACCOUNT_LABEL}
+                  value={entry.due_to_person_name || '—'}
+                />
+              </>
+            ) : entry.person_name ? (
+              <DetailRow icon="person-outline" label="Account" value={entry.person_name} />
+            ) : null}
             <DetailRow icon="calendar-outline" label="Date" value={dateDisplay} />
             {dueDateDisplay ? <DetailRow icon="calendar-clear-outline" label="Due Date" value={dueDateDisplay} /> : null}
             {timeDisplay ? <DetailRow icon="time-outline" label="Time" value={timeDisplay} /> : null}
