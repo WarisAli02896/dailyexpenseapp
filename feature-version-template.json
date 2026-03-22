@@ -465,6 +465,23 @@
             "Keep due entry marked repaid after posting both sides",
             "Delete linked repayment entries together by reference id"
           ]
+        },
+        {
+          "featureName": "Month year and all-time filter on due amount",
+          "version": "8.12",
+          "screensIncluded": [
+            "DueAmountScreen",
+            "DueAccountDetailScreen",
+            "entryService",
+            "dueMessages"
+          ],
+          "functionalities": [
+            "Month scope with cumulative-through-selected-month filter matching Home",
+            "Year scope and All-time scope for due lists and account totals",
+            "Filter by effective due date for dues and payment date for repayments",
+            "Pass active filter into account detail when opened from Accounts tab",
+            "Centralize filter-related user-facing strings in dueMessages"
+          ]
         }
       ]
     },

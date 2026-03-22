@@ -8,16 +8,43 @@ import { FONTS } from '../../constants/fonts';
 import { useAuth } from '../../hooks/useAuth';
 import { getDueAccountEntries, getDueAccountTotals, deleteEntry, repayDueEntry } from '../../services/entryService';
 import { formatAmount } from '../../utils/currencyUtils';
+import { getMonthName } from '../../utils/dateUtils';
 import { showAlert, showConfirm } from '../../utils/alertUtils';
 import { DUE_MESSAGES } from '../../messages/dueMessages';
 
 const DueAmountScreen = ({ navigation }) => {
   const { user } = useAuth();
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+  const [periodScope, setPeriodScope] = useState('month');
   const [entries, setEntries] = useState([]);
   const [accountTotals, setAccountTotals] = useState([]);
   const [totalDue, setTotalDue] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
+
+  const dueFilterOpts = useMemo(() => {
+    if (periodScope === 'all') return { scope: 'all' };
+    return { scope: periodScope, month, year };
+  }, [periodScope, month, year]);
+
+  const goPrevMonth = () => {
+    if (month === 1) {
+      setMonth(12);
+      setYear((y) => y - 1);
+    } else setMonth((m) => m - 1);
+  };
+
+  const goNextMonth = () => {
+    if (month === 12) {
+      setMonth(1);
+      setYear((y) => y + 1);
+    } else setMonth((m) => m + 1);
+  };
+
+  const goPrevYear = () => setYear((y) => y - 1);
+  const goNextYear = () => setYear((y) => y + 1);
 
   const groupedEntries = useMemo(() => {
     const dueEntries = entries.filter((e) => e.entry_type === 'due');
@@ -74,8 +101,8 @@ const DueAmountScreen = ({ navigation }) => {
   const loadData = useCallback(async () => {
     if (!user) return;
     const [entriesResult, totalsResult] = await Promise.all([
-      getDueAccountEntries(user.id),
-      getDueAccountTotals(user.id),
+      getDueAccountEntries(user.id, dueFilterOpts),
+      getDueAccountTotals(user.id, dueFilterOpts),
     ]);
     if (entriesResult.success) {
       setEntries(entriesResult.data);
@@ -86,7 +113,7 @@ const DueAmountScreen = ({ navigation }) => {
     } else {
       showAlert('Error', DUE_MESSAGES.FETCH_FAILED);
     }
-  }, [user]);
+  }, [user, dueFilterOpts]);
 
   useFocusEffect(
     useCallback(() => {
@@ -99,8 +126,8 @@ const DueAmountScreen = ({ navigation }) => {
     setRefreshing(true);
     try {
       const [entriesResult, totalsResult] = await Promise.all([
-        getDueAccountEntries(user.id),
-        getDueAccountTotals(user.id),
+        getDueAccountEntries(user.id, dueFilterOpts),
+        getDueAccountTotals(user.id, dueFilterOpts),
       ]);
       if (entriesResult.success) {
         setEntries(entriesResult.data);
@@ -117,7 +144,7 @@ const DueAmountScreen = ({ navigation }) => {
     } finally {
       setRefreshing(false);
     }
-  }, [user]);
+  }, [user, dueFilterOpts]);
 
   const handleDeleteGroup = (group) => {
     if (!group?.due) return;
@@ -175,6 +202,7 @@ const DueAmountScreen = ({ navigation }) => {
         navigation.navigate('DueAccountDetail', {
           personId: item.person_id,
           personName: item.person_name,
+          ...(periodScope !== 'all' ? { dueFilter: { scope: periodScope, month, year } } : {}),
         })
       }
       role="button"
@@ -195,6 +223,39 @@ const DueAmountScreen = ({ navigation }) => {
 
   const ListHeader = () => (
     <View style={styles.headerWrap}>
+      <View style={styles.filterRow}>
+        {[
+          { key: 'month', label: DUE_MESSAGES.FILTER_SCOPE_MONTH },
+          { key: 'year', label: DUE_MESSAGES.FILTER_SCOPE_YEAR },
+          { key: 'all', label: DUE_MESSAGES.FILTER_SCOPE_ALL },
+        ].map((f) => (
+          <Pressable
+            key={f.key}
+            style={[styles.filterChip, periodScope === f.key && styles.filterChipActive]}
+            onPress={() => setPeriodScope(f.key)}
+            role="button"
+          >
+            <Text style={[styles.filterChipText, periodScope === f.key && styles.filterChipTextActive]}>{f.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {periodScope !== 'all' ? (
+        <View style={styles.periodNav}>
+          <Pressable onPress={periodScope === 'month' ? goPrevMonth : goPrevYear} style={styles.periodNavBtn} hitSlop={10}>
+            <Ionicons name="chevron-back" size={20} color={COLORS.text} />
+          </Pressable>
+          <Text style={styles.periodNavLabel}>
+            {periodScope === 'month' ? `${getMonthName(month)} ${year}` : `${DUE_MESSAGES.FILTER_SCOPE_YEAR} ${year}`}
+          </Text>
+          <Pressable onPress={periodScope === 'month' ? goNextMonth : goNextYear} style={styles.periodNavBtn} hitSlop={10}>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.text} />
+          </Pressable>
+        </View>
+      ) : (
+        <Text style={styles.allTimeLabel}>{DUE_MESSAGES.FILTER_SCOPE_ALL}</Text>
+      )}
+
       <View style={styles.summaryCard}>
         <View style={styles.summaryIcon}>
           <Ionicons name="receipt-outline" size={26} color={COLORS.warning} />
@@ -205,32 +266,35 @@ const DueAmountScreen = ({ navigation }) => {
         </View>
         <Text style={styles.summaryCount}>{entries.length} Entries</Text>
       </View>
-        <View style={styles.tabRow}>
-          <Pressable
-            style={[styles.tabBtn, activeTab === 'all' && styles.tabBtnActive]}
-            onPress={() => setActiveTab('all')}
-            role="button"
-          >
-            <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>All Entries</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tabBtn, activeTab === 'accounts' && styles.tabBtnActive]}
-            onPress={() => setActiveTab('accounts')}
-            role="button"
-          >
-            <Text style={[styles.tabText, activeTab === 'accounts' && styles.tabTextActive]}>Accounts</Text>
-          </Pressable>
-        </View>
+      <View style={styles.tabRow}>
+        <Pressable
+          style={[styles.tabBtn, activeTab === 'all' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('all')}
+          role="button"
+        >
+          <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>All Entries</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tabBtn, activeTab === 'accounts' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('accounts')}
+          role="button"
+        >
+          <Text style={[styles.tabText, activeTab === 'accounts' && styles.tabTextActive]}>Accounts</Text>
+        </Pressable>
+      </View>
     </View>
   );
 
-  const ListEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Ionicons name="receipt-outline" size={60} color={COLORS.textLight} />
-      <Text style={styles.emptyTitle}>{DUE_MESSAGES.EMPTY_TITLE}</Text>
-      <Text style={styles.emptyText}>{DUE_MESSAGES.EMPTY_SUBTITLE}</Text>
-    </View>
-  );
+  const ListEmpty = () => {
+    const filtered = periodScope !== 'all';
+    return (
+      <View style={styles.emptyContainer}>
+        <Ionicons name="receipt-outline" size={60} color={COLORS.textLight} />
+        <Text style={styles.emptyTitle}>{filtered ? DUE_MESSAGES.EMPTY_FILTER_TITLE : DUE_MESSAGES.EMPTY_TITLE}</Text>
+        <Text style={styles.emptyText}>{filtered ? DUE_MESSAGES.EMPTY_FILTER_SUBTITLE : DUE_MESSAGES.EMPTY_SUBTITLE}</Text>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -266,6 +330,63 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   listContent: { padding: 20, paddingTop: 8, paddingBottom: 90 },
   headerWrap: { marginBottom: 16 },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  filterChipActive: {
+    backgroundColor: COLORS.warning + '18',
+    borderColor: COLORS.warning + '55',
+  },
+  filterChipText: {
+    fontSize: FONTS.sizes.sm,
+    color: COLORS.textSecondary,
+    fontWeight: FONTS.weights.medium,
+  },
+  filterChipTextActive: {
+    color: COLORS.warning,
+    fontWeight: FONTS.weights.semiBold,
+  },
+  periodNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  periodNavBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: COLORS.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  periodNavLabel: {
+    fontSize: FONTS.sizes.lg,
+    fontWeight: FONTS.weights.bold,
+    color: COLORS.text,
+    minWidth: 160,
+    textAlign: 'center',
+  },
+  allTimeLabel: {
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.semiBold,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
   tabRow: {
     marginTop: 12,
     flexDirection: 'row',

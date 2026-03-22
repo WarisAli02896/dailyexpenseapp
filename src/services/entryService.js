@@ -22,6 +22,12 @@ const buildScopeFilter = (dateExpression, scope, month, year) => {
   return buildPeriodFilter(dateExpression, month, year);
 };
 
+/** Repayment rows use payment date; due rows use due_date when set, else entry date. */
+const dueAccountEffectiveDateExpr = `CASE WHEN e.entry_type = 'repayment' THEN e.date ELSE COALESCE(e.due_date, e.date) END`;
+
+const buildDueAccountScopeFilter = (scope, month, year) =>
+  buildScopeFilter(dueAccountEffectiveDateExpr, scope, month, year);
+
 export const addEntry = async ({ userId, type, entryType, title, amount, companyName, categoryId, date, dueDate, dueToPersonId, isDueOnAccount, notes, isRecurring, invoiceUri, invoiceType, invoiceUri2, invoiceType2, personId, sourceId, showInAccount }) => {
   try {
     const db = await getDBConnection();
@@ -92,9 +98,17 @@ export const getEntriesByType = async (userId, type, month, year) => {
   }
 };
 
-export const getDueAccountEntries = async (userId) => {
+/**
+ * @param {number} userId
+ * @param {{ scope?: 'month'|'year'|'all', month?: number, year?: number }} [filter]
+ *        scope 'month' uses cumulative-through-selected-month (same as home/expense lists).
+ */
+export const getDueAccountEntries = async (userId, filter = {}) => {
   try {
     const db = await getDBConnection();
+    const scope = filter.scope ?? 'all';
+    const scopeFilter = buildDueAccountScopeFilter(scope, filter.month, filter.year);
+
     const entries = await db.getAllAsync(
       `SELECT e.*, p_from.name as from_person_name, p_to.name as person_name, p_to.name as due_to_person_name
        FROM entries e
@@ -103,8 +117,9 @@ export const getDueAccountEntries = async (userId) => {
        WHERE e.user_id = ?
          AND e.entry_type IN ('due', 'repayment')
          AND e.due_to_person_id IS NOT NULL
+         AND ${scopeFilter.clause}
        ORDER BY COALESCE(e.due_date, e.date) DESC, e.created_at DESC`,
-      [userId]
+      [userId, ...scopeFilter.params]
     );
 
     const total = entries.reduce((sum, e) => {
@@ -119,9 +134,16 @@ export const getDueAccountEntries = async (userId) => {
   }
 };
 
-export const getDueAccountTotals = async (userId) => {
+/**
+ * @param {number} userId
+ * @param {{ scope?: 'month'|'year'|'all', month?: number, year?: number }} [filter]
+ */
+export const getDueAccountTotals = async (userId, filter = {}) => {
   try {
     const db = await getDBConnection();
+    const scope = filter.scope ?? 'all';
+    const scopeFilter = buildDueAccountScopeFilter(scope, filter.month, filter.year);
+
     const rows = await db.getAllAsync(
       `SELECT
          p_to.id as person_id,
@@ -137,9 +159,10 @@ export const getDueAccountTotals = async (userId) => {
        JOIN persons p_to ON e.due_to_person_id = p_to.id
        WHERE e.user_id = ?
          AND e.entry_type IN ('due', 'repayment')
+         AND ${scopeFilter.clause}
        GROUP BY p_to.id, p_to.name
        ORDER BY total_due DESC, p_to.name ASC`,
-      [userId]
+      [userId, ...scopeFilter.params]
     );
     return { success: true, data: rows };
   } catch (error) {

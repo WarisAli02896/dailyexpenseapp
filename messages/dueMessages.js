@@ -18,4 +18,11 @@ export const DUE_MESSAGES = {
   REPAY_FAILED: 'Failed to mark due amount as repaid.',
   EMPTY_TITLE: 'No due amounts',
   EMPTY_SUBTITLE: 'Mark expense as due on account to see entries here.',
+  EMPTY_FILTER_TITLE: 'Nothing in this period',
+  EMPTY_FILTER_SUBTITLE: 'Try another month, year, or switch to All to see every due entry.',
+  FILTER_SCOPE_MONTH: 'Month',
+  FILTER_SCOPE_YEAR: 'Year',
+  FILTER_SCOPE_ALL: 'All',
+  ACCOUNT_DETAIL_EMPTY_TITLE: 'No due entries',
+  ACCOUNT_DETAIL_EMPTY_SUBTITLE: 'This account has no due history yet.',
 };

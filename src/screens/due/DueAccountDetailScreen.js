@@ -8,6 +8,7 @@ import { FONTS } from '../../constants/fonts';
 import { useAuth } from '../../hooks/useAuth';
 import { getDueAccountEntries, deleteEntry, repayDueEntry } from '../../services/entryService';
 import { formatAmount } from '../../utils/currencyUtils';
+import { getMonthName } from '../../utils/dateUtils';
 import { showAlert, showConfirm } from '../../utils/alertUtils';
 import { DUE_MESSAGES } from '../../messages/dueMessages';
 
@@ -15,6 +16,18 @@ const DueAccountDetailScreen = ({ route, navigation }) => {
   const { user } = useAuth();
   const personId = Number(route?.params?.personId);
   const personName = route?.params?.personName || 'Account';
+  const dueFilter = route?.params?.dueFilter;
+  const entriesFilter = useMemo(() => {
+    if (!dueFilter || dueFilter.scope === 'all') return { scope: 'all' };
+    return { scope: dueFilter.scope, month: dueFilter.month, year: dueFilter.year };
+  }, [dueFilter?.scope, dueFilter?.month, dueFilter?.year]);
+
+  const filterCaption = useMemo(() => {
+    if (!dueFilter || dueFilter.scope === 'all') return null;
+    if (dueFilter.scope === 'year') return `${DUE_MESSAGES.FILTER_SCOPE_YEAR} ${dueFilter.year}`;
+    return `${getMonthName(dueFilter.month)} ${dueFilter.year}`;
+  }, [dueFilter]);
+
   const [entries, setEntries] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -75,14 +88,14 @@ const DueAccountDetailScreen = ({ route, navigation }) => {
 
   const loadData = useCallback(async () => {
     if (!user || !personId) return;
-    const result = await getDueAccountEntries(user.id);
+    const result = await getDueAccountEntries(user.id, entriesFilter);
     if (result.success) {
       const accountEntries = result.data.filter((e) => Number(e.due_to_person_id) === personId);
       setEntries(accountEntries);
     } else {
       showAlert('Error', DUE_MESSAGES.FETCH_FAILED);
     }
-  }, [user, personId]);
+  }, [user, personId, entriesFilter]);
 
   useFocusEffect(
     useCallback(() => {
@@ -94,7 +107,7 @@ const DueAccountDetailScreen = ({ route, navigation }) => {
     if (!user || !personId) return;
     setRefreshing(true);
     try {
-      const result = await getDueAccountEntries(user.id);
+      const result = await getDueAccountEntries(user.id, entriesFilter);
       if (result.success) {
         const accountEntries = result.data.filter((e) => Number(e.due_to_person_id) === personId);
         setEntries(accountEntries);
@@ -106,7 +119,7 @@ const DueAccountDetailScreen = ({ route, navigation }) => {
     } finally {
       setRefreshing(false);
     }
-  }, [user, personId]);
+  }, [user, personId, entriesFilter]);
 
   const handleDeleteGroup = (group) => {
     if (!group?.due) return;
@@ -166,7 +179,9 @@ const DueAccountDetailScreen = ({ route, navigation }) => {
           </View>
           <View>
             <Text style={styles.summaryLabel}>{personName}</Text>
-            <Text style={styles.summarySub}>{entries.length} Entries</Text>
+            <Text style={styles.summarySub}>
+              {entries.length} Entries{filterCaption ? ` · ${filterCaption}` : ''}
+            </Text>
           </View>
         </View>
         <Text style={[styles.summaryAmount, { color: totalDue >= 0 ? COLORS.expense : COLORS.income }]}>
@@ -183,8 +198,12 @@ const DueAccountDetailScreen = ({ route, navigation }) => {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="receipt-outline" size={56} color={COLORS.textLight} />
-            <Text style={styles.emptyTitle}>No due entries</Text>
-            <Text style={styles.emptyText}>This account has no due history yet.</Text>
+            <Text style={styles.emptyTitle}>
+              {filterCaption ? DUE_MESSAGES.EMPTY_FILTER_TITLE : DUE_MESSAGES.ACCOUNT_DETAIL_EMPTY_TITLE}
+            </Text>
+            <Text style={styles.emptyText}>
+              {filterCaption ? DUE_MESSAGES.EMPTY_FILTER_SUBTITLE : DUE_MESSAGES.ACCOUNT_DETAIL_EMPTY_SUBTITLE}
+            </Text>
           </View>
         }
         refreshControl={
