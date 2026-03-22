@@ -100,7 +100,7 @@
       "notes": "Follow-up fix under 8.11 flow: database initialization stabilized so due repayment testing and runtime stay reliable."
     },
     {
-      "buildVersion": "1.0.8.11.3",
+      "buildVersion": "1.0.16.2.1",
       "releaseDate": "2026-03-21",
       "oldFeatures": [],
       "updatedFeatures": [],
@@ -128,7 +128,7 @@
       "notes": "Local release APK generation on Windows: postinstall applies NDK 27 / ld.lld libc++ link fix for native modules."
     },
     {
-      "buildVersion": "1.0.8.11.4",
+      "buildVersion": "1.0.16.3.1",
       "releaseDate": "2026-03-21",
       "oldFeatures": [],
       "updatedFeatures": [],
@@ -186,6 +186,87 @@
         "functionalityChanges": 2
       },
       "notes": "Post-QA: verified Google OAuth return and local release flow; package version aligned for Git push."
+    },
+    {
+      "buildVersion": "1.0.14.4.1",
+      "releaseDate": "2026-03-21",
+      "oldFeatures": [],
+      "updatedFeatures": [],
+      "newFeatures": [
+        {
+          "featureName": "Backup includes due and repayment entry fields",
+          "featureVersion": "14.4",
+          "functionalityVersion": "14.4.0",
+          "changeType": "new",
+          "screensAffected": [
+            "backupService",
+            "DueAmountScreen",
+            "DueAccountDetailScreen"
+          ],
+          "functionalities": [
+            "Export and restore due_date, due_to_person_id, is_due_on_account",
+            "Remap repayment_for_entry_id after restore so Due lists and repay flows work"
+          ]
+        }
+      ],
+      "summary": {
+        "buildNumber": 7,
+        "featureChanges": 1,
+        "functionalityChanges": 2
+      },
+      "notes": "Fix: after Google backup/restore, due entries and due-account views show data again (backup payload included due columns; repayment refs remapped)."
+    },
+    {
+      "buildVersion": "1.1.14.4.1",
+      "releaseDate": "2026-03-22",
+      "oldFeatures": [],
+      "updatedFeatures": [],
+      "newFeatures": [],
+      "summary": {
+        "buildNumber": 8,
+        "featureChanges": 0,
+        "functionalityChanges": 0
+      },
+      "notes": "Build (segment 2) incremented to 1 after successful GitHub push and QA. Segments 3–4 stay with last shipped child feature (14.4 backup/due restore); segment 5 reset to 1 for first row under this build."
+    },
+    {
+      "buildVersion": "1.1.14.4.2",
+      "releaseDate": "2026-03-22",
+      "oldFeatures": [],
+      "updatedFeatures": [
+        {
+          "featureName": "Backup includes due and repayment entry fields",
+          "featureVersion": "14.4",
+          "functionalityVersion": "14.4.1",
+          "changeType": "fix",
+          "screensAffected": [
+            "backupService"
+          ],
+          "functionalities": [
+            "Coerce person/source/entry ids to numbers when building id maps on restore so due_to_person_id is not lost"
+          ]
+        }
+      ],
+      "newFeatures": [],
+      "summary": {
+        "buildNumber": 9,
+        "featureChanges": 0,
+        "functionalityChanges": 1
+      },
+      "notes": "Fix: Due list empty after restore when backup JSON had string ids; personIdMap lookups now match so due_to_person_id inserts correctly."
+    },
+    {
+      "buildVersion": "1.2.14.4.1",
+      "releaseDate": "2026-03-22",
+      "oldFeatures": [],
+      "updatedFeatures": [],
+      "newFeatures": [],
+      "summary": {
+        "buildNumber": 10,
+        "featureChanges": 0,
+        "functionalityChanges": 0
+      },
+      "notes": "Post-QA: pushed to origin. Segment 2 (build) incremented 1 to 2 per project rules; segment 5 reset to 1 for first row under build 1.2 at feature 14.4. package.json, app.json, and Android versionName/versionCode aligned (versionCode encodes five-part segments)."
     }
   ]
 }

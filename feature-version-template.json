@@ -853,6 +853,22 @@
             "Switch active session",
             "Show restore validation messages"
           ]
+        },
+        {
+          "featureName": "Backup includes due and repayment entry fields",
+          "version": "14.4",
+          "screensIncluded": [
+            "backupService",
+            "DueAmountScreen",
+            "DueAccountDetailScreen"
+          ],
+          "functionalities": [
+            "Export entries with due_date, due_to_person_id, is_due_on_account, repayment_for_entry_id",
+            "Restore due person links via person id map",
+            "Remap repayment_for_entry_id to new entry ids after insert",
+            "Default legacy due rows to is_due_on_account when field was missing in old backups",
+            "Normalize backup entity ids (string or number) when mapping persons, sources, and entries on restore"
+          ]
         }
       ]
     },

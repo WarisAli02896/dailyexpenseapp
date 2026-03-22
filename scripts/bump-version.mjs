@@ -1,3 +1,8 @@
+/**
+ * Legacy script: expected `x.x` marketing semver only.
+ * Project rule: `package.json` `version` is five-part `release.build.featureMajor.featureMinor.increment`
+ * aligned with `release-tracking.json` — do not run this against `package.json` until rewritten.
+ */
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -10,6 +15,21 @@ if (!MODES.includes(mode)) {
   process.exit(1);
 }
 
+const packageJsonPath = path.join(ROOT, 'package.json');
+const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+const ver = String(packageJson.version || '');
+const parts = ver.split('.');
+
+if (parts.length === 5 && parts.every((p) => /^\d+$/.test(p))) {
+  console.error(
+    'This project uses five-part versioning in package.json (see .cursor/rules/project-structure-and-messages.mdc).\n' +
+      'Update release-tracking.json and package.json manually, or extend this script.\n' +
+      `Current version: ${ver}`,
+  );
+  process.exit(1);
+}
+
+// Fallback: preserve old behavior only for non–5-part package.json (should not happen in this repo).
 const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, 'utf8'));
 const writeJson = (filePath, data) => {
   fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
@@ -26,12 +46,10 @@ const parseVersion = (version) => {
 const formatVersion = (major, minor) => `${major}.${minor}`;
 const toVersionCode = (major, minor) => major * 100 + minor;
 
-const packageJsonPath = path.join(ROOT, 'package.json');
 const appJsonPath = path.join(ROOT, 'app.json');
 const androidGradlePath = path.join(ROOT, 'android', 'app', 'build.gradle');
 const androidStringsPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'res', 'values', 'strings.xml');
 
-const packageJson = readJson(packageJsonPath);
 const appJson = readJson(appJsonPath);
 
 const current = parseVersion(packageJson.version);
@@ -68,7 +86,7 @@ if (fs.existsSync(androidStringsPath)) {
   let xml = fs.readFileSync(androidStringsPath, 'utf8');
   xml = xml.replace(
     /<string name="app_name">[^<]*<\/string>/,
-    `<string name="app_name">${nextDisplayName}</string>`
+    `<string name="app_name">${nextDisplayName}</string>`,
   );
   fs.writeFileSync(androidStringsPath, xml, 'utf8');
 }

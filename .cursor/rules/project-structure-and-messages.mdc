@@ -60,25 +60,26 @@ Rules:
 
 `release-tracking.json` is the release changelog using 5-part versioning.
 
-Version format:
-- `x.x.x.x.x`
-  - 1st `x` = release number (update only when user says release is successful)
-  - 2nd `x` = build number (update only after build is created successfully)
-  - 3rd `x` = feature part from feature tracking
-  - 4th `x` = functionality part from feature tracking
-  - 5th `x` = increment for each change in same functionality line
+Version format (strict): `release.build.featureMajor.featureMinor.increment`
 
-Version example (must follow):
-- Prefix meaning:
-  - `x.x` = build scope
-  - `x.x.x` = build + feature scope
-  - `x.x.x.x` = build + feature + functionality scope
-  - `x.x.x.x.x` = final release-tracking version with change increment
-- Example sequence:
-  - first change: `1.0.8.11.1`
-  - second change: `1.0.8.11.2`
-  - third change: `1.0.8.11.3`
-- In this example, first `x` (`1`) changes only after user confirms release success.
+| Segment | Meaning | How to set |
+|--------|---------|------------|
+| 1 | **Release** | Bump only when the user confirms a **store / production release** succeeded. |
+| 2 | **Build** | Bump only after a **successful build** (or agreed QA gate). |
+| 3 | **Feature major** | First number of the **child** `featureVersion` in `feature-version-template.json` for *this* change (e.g. `8.11` → **8**, `14.4` → **14**, `16.3` → **16**). |
+| 4 | **Feature minor** | Second number of that same **child** `featureVersion` (e.g. `8.11` → **11**, `14.4` → **4**, `16.3` → **3**). |
+| 5 | **Change increment** | Starts at **1** for the first release row at a given `(1–4)`. Then `2`, `3`, … for each further change with the **same** release, build, feature major, and feature minor. |
+
+**Wrong (do not do):** Reusing `8.11` in segments 3–4 when the tracked work belongs to another child feature (e.g. `16.2`, `16.3`, `14.4`). The five-part string must match the **featureVersion** on that release row.
+
+**functionalityVersion** in JSON (e.g. `14.4.0`) is the template’s full id; segments **3–4** still come from the two-part **featureVersion** (`14.4` → 14, 4), not from unrelated features.
+
+Examples:
+- Child **8.11** (repay due), build `0`, release `1`: `1.0.8.11.1`, next change same line: `1.0.8.11.2`.
+- Child **16.2** (NDK): `1.0.16.2.1`.
+- Child **16.3** (OAuth): first change `1.0.16.3.1`, second `1.0.16.3.2`.
+- Child **14.4** (backup due fields): `1.0.14.4.1`.
+- When segment **2** increments, reset segment **5** to **1** for the first row under the new build (e.g. last row at `1.0.14.4.1` → next build’s first row for the same `14.4` line: `1.1.14.4.1`).
 
 Expected structure:
 - Top level:
@@ -127,11 +128,14 @@ Template:
 
 - `release-tracking.json` `featureVersion` must exist in `feature-version-template.json`.
 - `release-tracking.json` `functionalityVersion` must map to the same feature line in `feature-version-template.json`.
-- For each new code change, increment only the 5th segment in `buildVersion` when staying in same feature/functionality branch.
+- **`buildVersion` segments 3 and 4** must equal the two numbers in that row’s **`featureVersion`** (e.g. `featureVersion` `"16.3"` → `…16.3.?` — never `…8.11.?` for that row).
+- For each new code change at the **same** child feature and same release+build, increment **only** the 5th segment.
+- When you start work under a **different** child feature, set segments 3–4 from its `featureVersion` and set segment 5 back to **1**.
+- When segment 2 (build) bumps, set segment 5 to **1** for the first tracking row under that build (for the applicable `featureVersion`).
 - Start baseline from `1.0.0.0.0`.
-- Use mapping pattern: `release.build.feature.functionality.increment`.
 - Update 2nd segment only after build creation succeeds.
 - Update 1st segment only when user explicitly says release is successful.
+- Do **not** use `scripts/bump-version.mjs` for `package.json` until it supports five-part versions (it currently expects `x.x` only and will corrupt `package.json`).
 
 # 4) Contributor Workflow
 
@@ -165,7 +169,7 @@ Rules:
 
 Examples:
 
-- `app-release-v1.0.8.11.4-20260321-1101.apk`
+- `app-release-v1.1.14.4.1-20260322-1200.apk` (must match current `package.json` / latest `buildVersion`)
 
 After `assembleRelease`, you can copy with the correct name using:
 

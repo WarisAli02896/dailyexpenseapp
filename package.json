@@ -1,6 +1,6 @@
 {
   "name": "dailyexpense",
-  "version": "1.0.8.11.5",
+  "version": "1.2.14.4.1",
   "main": "index.js",
   "scripts": {
     "postinstall": "node scripts/apply-android-ndk27-windows-linker-fix.mjs",

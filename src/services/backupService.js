@@ -2,10 +2,42 @@ import { getDBConnection } from './database';
 import { saveUserSession } from './storageService';
 import { BACKUP_MESSAGES } from '../../messages/backupMessages';
 
-const BACKUP_SCHEMA_VERSION = 2;
+const BACKUP_SCHEMA_VERSION = 3;
 
 const parseArray = (value) => (Array.isArray(value) ? value : []);
 const isValidPin = (pin) => /^\d{6}$/.test(String(pin || ''));
+
+/**
+ * Coerce ids from backup JSON (number or string) so Map set/get stay consistent.
+ * Without this, due_to_person_id / person_id lookups can fail and due entries vanish from Due UI
+ * (getDueAccountEntries requires due_to_person_id IS NOT NULL).
+ */
+const toBackupEntityId = (value) => {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
+const setBackupIdMap = (map, rawOldId, newSqliteId) => {
+  const k = toBackupEntityId(rawOldId);
+  if (k == null) return;
+  map.set(k, newSqliteId);
+};
+
+const getBackupIdMap = (map, rawOldId) => {
+  const k = toBackupEntityId(rawOldId);
+  if (k == null) return undefined;
+  return map.get(k);
+};
+
+/** Legacy backups omitted is_due_on_account; treat missing due rows as account dues. */
+const normalizeIsDueOnAccount = (entry) => {
+  if (entry.is_due_on_account != null && entry.is_due_on_account !== '') {
+    return Number(entry.is_due_on_account);
+  }
+  if (entry.entry_type === 'due') return 1;
+  return 0;
+};
 
 const restorePayloadToUser = async (db, userId, payload) => {
   const persons = parseArray(payload.persons);
@@ -35,7 +67,7 @@ const restorePayloadToUser = async (db, userId, payload) => {
         person.created_at || new Date().toISOString(),
       ]
     );
-    personIdMap.set(person.id, result.lastInsertRowId);
+    setBackupIdMap(personIdMap, person.id, result.lastInsertRowId);
   }
 
   if (persons.length === 0) {
@@ -59,16 +91,19 @@ const restorePayloadToUser = async (db, userId, payload) => {
         source.created_at || new Date().toISOString(),
       ]
     );
-    sourceIdMap.set(source.id, result.lastInsertRowId);
+    setBackupIdMap(sourceIdMap, source.id, result.lastInsertRowId);
   }
 
+  const entryIdMap = new Map();
+
   for (const entry of entries) {
-    await db.runAsync(
+    const result = await db.runAsync(
       `INSERT INTO entries (
-        user_id, type, entry_type, title, amount, company_name, category_id, date, notes,
-        is_recurring, invoice_uri, invoice_type, invoice_uri_2, invoice_type_2, person_id, source_id,
-        show_in_account, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        user_id, type, entry_type, title, amount, company_name, category_id, date,
+        due_date, due_to_person_id, repayment_for_entry_id, is_due_on_account,
+        notes, is_recurring, invoice_uri, invoice_type, invoice_uri_2, invoice_type_2,
+        person_id, source_id, show_in_account, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         userId,
         entry.type,
@@ -78,18 +113,33 @@ const restorePayloadToUser = async (db, userId, payload) => {
         entry.company_name ?? null,
         entry.category_id ?? null,
         entry.date,
+        entry.due_date ?? null,
+        getBackupIdMap(personIdMap, entry.due_to_person_id) ?? null,
+        null,
+        normalizeIsDueOnAccount(entry),
         entry.notes ?? null,
         Number(entry.is_recurring || 0),
         entry.invoice_uri ?? null,
         entry.invoice_type ?? null,
         entry.invoice_uri_2 ?? null,
         entry.invoice_type_2 ?? null,
-        personIdMap.get(entry.person_id) ?? null,
-        sourceIdMap.get(entry.source_id) ?? null,
+        getBackupIdMap(personIdMap, entry.person_id) ?? null,
+        getBackupIdMap(sourceIdMap, entry.source_id) ?? null,
         Number(entry.show_in_account ?? 1),
         entry.created_at || new Date().toISOString(),
       ]
     );
+    entryIdMap.set(entry.id, result.lastInsertRowId);
+  }
+
+  for (const entry of entries) {
+    const oldRef = entry.repayment_for_entry_id;
+    if (oldRef == null || oldRef === '') continue;
+    const newRowId = entryIdMap.get(entry.id);
+    const newRef = entryIdMap.get(oldRef);
+    if (newRowId && newRef) {
+      await db.runAsync('UPDATE entries SET repayment_for_entry_id = ? WHERE id = ?', [newRef, newRowId]);
+    }
   }
 
   for (const budget of budgets) {
@@ -120,10 +170,10 @@ const restorePayloadToUser = async (db, userId, payload) => {
         template.title,
         template.amount,
         template.company_name ?? null,
-        personIdMap.get(template.person_id) ?? null,
+        getBackupIdMap(personIdMap, template.person_id) ?? null,
         template.created_at || new Date().toISOString(),
         template.updated_at || new Date().toISOString(),
-        sourceIdMap.get(template.source_id) ?? null,
+        getBackupIdMap(sourceIdMap, template.source_id) ?? null,
       ]
     );
   }
@@ -166,8 +216,9 @@ export const exportUserBackup = async (userId) => {
     );
 
     const entries = await db.getAllAsync(
-      `SELECT id, type, entry_type, title, amount, company_name, category_id, date, notes,
-              is_recurring, invoice_uri, invoice_type, invoice_uri_2, invoice_type_2,
+      `SELECT id, type, entry_type, title, amount, company_name, category_id, date,
+              due_date, due_to_person_id, repayment_for_entry_id, is_due_on_account,
+              notes, is_recurring, invoice_uri, invoice_type, invoice_uri_2, invoice_type_2,
               person_id, source_id, show_in_account, created_at
        FROM entries
        WHERE user_id = ?

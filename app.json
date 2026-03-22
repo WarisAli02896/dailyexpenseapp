@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "DailyExpense-6.2",
+    "name": "DailyExpense-1.2",
     "slug": "DailyExpense",
     "scheme": "dailyexpense",
-    "version": "6.2",
+    "version": "1.2.14.4.1",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.dailyexpense.app",
-      "versionCode": 602,
+      "versionCode": 10214041,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#6C63FF"
