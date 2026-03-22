@@ -504,6 +504,29 @@
             "getEntryForDetail and updateEntry joins for person_name, from_person_name, and due_to_person_name",
             "DueAmountEditModal: equal-width Cancel/Save using flex slots and transparent border on primary"
           ]
+        },
+        {
+          "featureName": "Partial repayments and repayment history per due",
+          "version": "8.14",
+          "screensIncluded": [
+            "DueAmountScreen",
+            "DueAccountDetailScreen",
+            "DueGroupedEntryRow",
+            "DueRepayModal",
+            "EntryDetailScreen",
+            "entryService",
+            "dueMessages",
+            "dueRepayUtils"
+          ],
+          "functionalities": [
+            "Repay modal with amount and optional note; validate against remaining due",
+            "Reject repay amount greater than remaining; mark fully repaid only when sum of repayments reaches principal",
+            "Persist each partial as earning and mirrored spending repayment rows with timestamp on entry date",
+            "Show total returned and remaining on grouped due row; repay button until settled",
+            "Due list summary shows total principal and remaining to repay; fix net totals to count earning repayments only",
+            "Account detail summary shows principal and remaining for that person",
+            "Entry detail lists repayment history with date time and notes for due entries"
+          ]
         }
       ]
     },

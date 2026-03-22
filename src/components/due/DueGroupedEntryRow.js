@@ -17,12 +17,15 @@ const formatDayMonth = (value) => {
 const DueGroupedEntryRow = ({
   due,
   latestRepayment,
+  totalReturned,
+  remainingDue,
+  showRepayButton,
   onPress,
   onDelete,
   onRepay,
   onEditAmounts,
 }) => {
-  const isRepaid = Boolean(latestRepayment) || due.is_due_on_account === 0;
+  const isRepaid = !showRepayButton;
 
   return (
     <Pressable style={({ pressed }) => [styles.card, pressed && { opacity: 0.92 }]} onPress={onPress} role="button">
@@ -83,19 +86,30 @@ const DueGroupedEntryRow = ({
       <View style={styles.detailRow}>
         <View style={styles.rowLeft}>
           <Ionicons name="arrow-down-circle" size={18} color={COLORS.income} />
-          <Text style={styles.rowLabel}>Returned</Text>
+          <Text style={styles.rowLabel}>{DUE_MESSAGES.REPAY_TOTAL_RETURNED_LABEL}</Text>
           <Text style={styles.rowDate}>
             {latestRepayment
-              ? `${formatDayMonth(latestRepayment.date)} · Ref #${latestRepayment.repayment_for_entry_id || due.id}`
+              ? `Last: ${formatDayMonth(latestRepayment.date)} · Ref #${due.id}`
               : 'Not repaid yet'}
           </Text>
         </View>
         <Text style={styles.returnAmount}>
-          {latestRepayment ? `+ Rs. ${formatAmount(latestRepayment.amount)}` : '-'}
+          {Number(totalReturned) > 0 ? `+ Rs. ${formatAmount(totalReturned)}` : '-'}
         </Text>
       </View>
 
-      {!isRepaid ? (
+      <View style={styles.detailRow}>
+        <View style={styles.rowLeft}>
+          <Ionicons name="hourglass-outline" size={18} color={COLORS.warning} />
+          <Text style={styles.rowLabel}>{DUE_MESSAGES.REPAY_REMAINING_LABEL}</Text>
+          <Text style={styles.rowDate}>{DUE_MESSAGES.REPAY_HISTORY_HINT}</Text>
+        </View>
+        <Text style={[styles.returnAmount, { color: COLORS.warning }]}>
+          {Number(remainingDue) > 0 ? `Rs. ${formatAmount(remainingDue)}` : '—'}
+        </Text>
+      </View>
+
+      {showRepayButton ? (
         <Pressable
           style={({ pressed }) => [styles.repayBtn, pressed && { opacity: 0.85 }]}
           onPress={(e) => {
@@ -104,8 +118,8 @@ const DueGroupedEntryRow = ({
           }}
           role="button"
         >
-          <Ionicons name="checkmark-circle-outline" size={16} color={COLORS.income} />
-          <Text style={styles.repayText}>Mark Repaid</Text>
+          <Ionicons name="cash-outline" size={16} color={COLORS.income} />
+          <Text style={styles.repayText}>Repay</Text>
         </Pressable>
       ) : null}
     </Pressable>

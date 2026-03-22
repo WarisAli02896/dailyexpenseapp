@@ -123,10 +123,12 @@ export const getDueAccountEntries = async (userId, filter = {}) => {
       [userId, ...scopeFilter.params]
     );
 
+    // Count only earning repayments; each repay also has a mirrored spending row.
     const total = entries.reduce((sum, e) => {
       const amt = Number(e.amount || 0);
-      if (e.entry_type === 'repayment') return sum - amt;
-      return sum + amt;
+      if (e.entry_type === 'due') return sum + amt;
+      if (e.entry_type === 'repayment' && e.type === 'earning') return sum - amt;
+      return sum;
     }, 0);
     return { success: true, data: entries, total };
   } catch (error) {
@@ -151,11 +153,11 @@ export const getDueAccountTotals = async (userId, filter = {}) => {
          p_to.name as person_name,
          COALESCE(SUM(CASE
            WHEN e.entry_type = 'due' THEN e.amount
-           WHEN e.entry_type = 'repayment' THEN -e.amount
+           WHEN e.entry_type = 'repayment' AND e.type = 'earning' THEN -e.amount
            ELSE 0
          END), 0) as total_due,
          SUM(CASE WHEN e.entry_type = 'due' THEN 1 ELSE 0 END) as due_count,
-         SUM(CASE WHEN e.entry_type = 'repayment' THEN 1 ELSE 0 END) as repaid_count
+         SUM(CASE WHEN e.entry_type = 'repayment' AND e.type = 'earning' THEN 1 ELSE 0 END) as repaid_count
        FROM entries e
        JOIN persons p_to ON e.due_to_person_id = p_to.id
        WHERE e.user_id = ?
@@ -172,7 +174,21 @@ export const getDueAccountTotals = async (userId, filter = {}) => {
   }
 };
 
-export const repayDueEntry = async ({ userId, dueEntryId }) => {
+const sumEarningRepaymentsForDue = async (db, dueEntryId) => {
+  const row = await db.getFirstAsync(
+    `SELECT COALESCE(SUM(amount), 0) as total
+     FROM entries
+     WHERE repayment_for_entry_id = ? AND entry_type = 'repayment' AND type = 'earning'`,
+    [dueEntryId]
+  );
+  return Number(row?.total || 0);
+};
+
+/**
+ * Partial or full repayment against a due entry (earning + spending mirror rows).
+ * @param {{ userId: number, dueEntryId: number, amount: number, note?: string, date?: string }} params
+ */
+export const repayDuePartial = async ({ userId, dueEntryId, amount, note, date }) => {
   try {
     const db = await getDBConnection();
     const dueEntry = await db.getFirstAsync(
@@ -181,7 +197,7 @@ export const repayDueEntry = async ({ userId, dueEntryId }) => {
        FROM entries e
        LEFT JOIN persons p_from ON e.person_id = p_from.id
        LEFT JOIN persons p_to ON e.due_to_person_id = p_to.id
-       WHERE e.id = ? AND e.user_id = ? AND e.type = 'spending' AND e.entry_type = 'due' AND e.is_due_on_account = 1`,
+       WHERE e.id = ? AND e.user_id = ? AND e.type = 'spending' AND e.entry_type = 'due'`,
       [dueEntryId, userId]
     );
 
@@ -189,16 +205,31 @@ export const repayDueEntry = async ({ userId, dueEntryId }) => {
       return { success: false, message: ENTRY_MESSAGES.UPDATE_FAILED };
     }
 
-    const dateStr = formatDateForDB(new Date());
-    const repaymentAmount = Number(dueEntry.amount || 0);
+    const principal = Number(dueEntry.amount || 0);
+    const alreadyRepaid = await sumEarningRepaymentsForDue(db, dueEntryId);
+    const remaining = Math.max(0, principal - alreadyRepaid);
+    const repayAmt = Number(amount);
+
+    if (!Number.isFinite(repayAmt) || repayAmt <= 0) {
+      return { success: false, message: DUE_MESSAGES.REPAY_AMOUNT_INVALID };
+    }
+    if (remaining <= 0) {
+      return { success: false, message: DUE_MESSAGES.REPAY_ALREADY_SETTLED };
+    }
+    if (repayAmt > remaining + 0.0001) {
+      return { success: false, message: DUE_MESSAGES.REPAY_EXCEEDS_REMAINING };
+    }
+
+    const dateStr = date && String(date).trim() ? String(date).trim() : formatDateForDB(new Date());
+    const userNote = note != null ? String(note).trim() : '';
+    const baseRef = dueEntry.notes ? `Due: ${dueEntry.notes}` : 'Due-on-account repayment';
+    const repaymentNotes = userNote ? `${userNote} (${baseRef})` : baseRef;
+
     const repaymentTitle = `Repaid from ${dueEntry.due_to_person_name || 'Account'}`;
     const repaymentDebitTitle = `Repayment paid to ${dueEntry.from_person_name || 'Account'}`;
-    const repaymentNotes = dueEntry.notes
-      ? `Repayment for due entry: ${dueEntry.notes}`
-      : 'Repayment for due-on-account entry';
-    const updatedDueNotes = dueEntry.notes
-      ? `${dueEntry.notes} | Repaid on ${dateStr}`
-      : `Repaid on ${dateStr}`;
+
+    const newTotalRepaid = alreadyRepaid + repayAmt;
+    const isFullySettled = newTotalRepaid >= principal - 0.0001;
 
     await db.execAsync('BEGIN TRANSACTION');
 
@@ -210,7 +241,7 @@ export const repayDueEntry = async ({ userId, dueEntryId }) => {
         'earning',
         'repayment',
         repaymentTitle,
-        repaymentAmount,
+        repayAmt,
         dateStr,
         repaymentNotes,
         dueEntry.person_id || null,
@@ -221,7 +252,6 @@ export const repayDueEntry = async ({ userId, dueEntryId }) => {
       ]
     );
 
-    // Mirror the repayment on borrower side so account balances stay consistent.
     await db.runAsync(
       `INSERT INTO entries (user_id, type, entry_type, title, amount, date, notes, person_id, due_to_person_id, repayment_for_entry_id, show_in_account, is_due_on_account)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -230,7 +260,7 @@ export const repayDueEntry = async ({ userId, dueEntryId }) => {
         'spending',
         'repayment',
         repaymentDebitTitle,
-        repaymentAmount,
+        repayAmt,
         dateStr,
         repaymentNotes,
         dueEntry.due_to_person_id || null,
@@ -241,16 +271,24 @@ export const repayDueEntry = async ({ userId, dueEntryId }) => {
       ]
     );
 
-    await db.runAsync(
-      `UPDATE entries
-       SET is_due_on_account = 0,
-           notes = ?
-       WHERE id = ?`,
-      [updatedDueNotes, dueEntryId]
-    );
+    if (isFullySettled) {
+      const noteAppend = dueEntry.notes
+        ? `${dueEntry.notes} | Fully repaid on ${dateStr}`
+        : `Fully repaid on ${dateStr}`;
+      await db.runAsync(
+        `UPDATE entries SET is_due_on_account = 0, notes = ? WHERE id = ?`,
+        [noteAppend, dueEntryId]
+      );
+    } else {
+      await db.runAsync(`UPDATE entries SET is_due_on_account = 1 WHERE id = ?`, [dueEntryId]);
+    }
 
     await db.execAsync('COMMIT');
-    return { success: true, message: ENTRY_MESSAGES.UPDATE_SUCCESS };
+    return {
+      success: true,
+      message: isFullySettled ? DUE_MESSAGES.REPAY_SUCCESS_FULL : DUE_MESSAGES.REPAY_SUCCESS_PARTIAL,
+      fullySettled: isFullySettled,
+    };
   } catch (error) {
     try {
       const db = await getDBConnection();
@@ -258,8 +296,59 @@ export const repayDueEntry = async ({ userId, dueEntryId }) => {
     } catch {
       // Ignore rollback failure.
     }
+    console.error('Repay Due Partial Error:', error);
+    return { success: false, message: ENTRY_MESSAGES.UPDATE_FAILED };
+  }
+};
+
+/** Repay whatever balance remains on the due (same as full settle in one shot). */
+export const repayDueEntry = async ({ userId, dueEntryId }) => {
+  try {
+    const db = await getDBConnection();
+    const dueEntry = await db.getFirstAsync(
+      `SELECT e.id, e.amount FROM entries e
+       WHERE e.id = ? AND e.user_id = ? AND e.type = 'spending' AND e.entry_type = 'due'`,
+      [dueEntryId, userId]
+    );
+    if (!dueEntry) {
+      return { success: false, message: ENTRY_MESSAGES.UPDATE_FAILED };
+    }
+    const principal = Number(dueEntry.amount || 0);
+    const alreadyRepaid = await sumEarningRepaymentsForDue(db, dueEntryId);
+    const remaining = Math.max(0, principal - alreadyRepaid);
+    if (remaining <= 0) {
+      return { success: false, message: DUE_MESSAGES.REPAY_ALREADY_SETTLED };
+    }
+    return repayDuePartial({
+      userId,
+      dueEntryId,
+      amount: remaining,
+      note: '',
+      date: undefined,
+    });
+  } catch (error) {
     console.error('Repay Due Entry Error:', error);
     return { success: false, message: ENTRY_MESSAGES.UPDATE_FAILED };
+  }
+};
+
+/**
+ * Earning-side repayment rows for a due (one row per partial or full repay event).
+ */
+export const getRepaymentHistoryForDue = async (userId, dueEntryId) => {
+  try {
+    const db = await getDBConnection();
+    const rows = await db.getAllAsync(
+      `SELECT id, amount, notes, date, created_at
+       FROM entries
+       WHERE user_id = ? AND repayment_for_entry_id = ? AND entry_type = 'repayment' AND type = 'earning'
+       ORDER BY datetime(COALESCE(created_at, date)) DESC, id DESC`,
+      [userId, dueEntryId]
+    );
+    return { success: true, data: rows || [] };
+  } catch (error) {
+    console.error('Get Repayment History For Due Error:', error);
+    return { success: false, data: [] };
   }
 };
 
@@ -284,11 +373,15 @@ export const updateDueGroupedAmounts = async ({ userId, dueEntryId, givenAmount,
     }
 
     const repaymentRows = await db.getAllAsync(
-      `SELECT id, type FROM entries
+      `SELECT id, type, amount FROM entries
        WHERE repayment_for_entry_id = ? AND entry_type = 'repayment'`,
       [dueEntryId]
     );
     const earningRepayments = repaymentRows.filter((r) => r.type === 'earning');
+    const totalRepaid = earningRepayments.reduce((s, r) => s + Number(r.amount || 0), 0);
+    if (given < totalRepaid - 0.0001) {
+      return { success: false, message: DUE_MESSAGES.GIVEN_BELOW_REPAID };
+    }
 
     const shouldUpdateReturned =
       returnedAmount !== undefined && returnedAmount !== null && String(returnedAmount).trim() !== '';

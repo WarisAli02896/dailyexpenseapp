@@ -407,6 +407,41 @@
         "functionalityChanges": 1
       },
       "notes": "Post-QA: build segment 4 to 5; increment reset to 1 at 8.13. Due edit modal button layout. versionCode 10508131."
+    },
+    {
+      "buildVersion": "1.5.8.14.1",
+      "releaseDate": "2026-03-20",
+      "oldFeatures": [],
+      "updatedFeatures": [],
+      "newFeatures": [
+        {
+          "featureName": "Partial repayments and repayment history per due",
+          "featureVersion": "8.14",
+          "functionalityVersion": "8.14.0",
+          "changeType": "new",
+          "screensAffected": [
+            "DueAmountScreen",
+            "DueAccountDetailScreen",
+            "DueGroupedEntryRow",
+            "DueRepayModal",
+            "EntryDetailScreen",
+            "entryService",
+            "dueMessages",
+            "dueRepayUtils"
+          ],
+          "functionalities": [
+            "Repay modal with amount and required note; validate against remaining due",
+            "Repayment history with date/time on due entry detail",
+            "Due screen summary: total principal and remaining to repay"
+          ]
+        }
+      ],
+      "summary": {
+        "buildNumber": 17,
+        "featureChanges": 1,
+        "functionalityChanges": 3
+      },
+      "notes": "Partial due repayments, history, and summary totals. versionCode 10508141. Git push + release APK."
     }
   ]
 }

@@ -4,11 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import DueGroupedEntryRow from '../../components/due/DueGroupedEntryRow';
 import DueAmountEditModal from '../../components/due/DueAmountEditModal';
+import DueRepayModal from '../../components/due/DueRepayModal';
 import { COLORS } from '../../constants/colors';
 import { FONTS } from '../../constants/fonts';
 import { useAuth } from '../../hooks/useAuth';
-import { getDueAccountEntries, getDueAccountTotals, deleteEntry, repayDueEntry } from '../../services/entryService';
+import { getDueAccountEntries, getDueAccountTotals, deleteEntry } from '../../services/entryService';
 import { formatAmount } from '../../utils/currencyUtils';
+import { computeDueRepayStats } from '../../utils/dueRepayUtils';
 import { getMonthName } from '../../utils/dateUtils';
 import { showAlert, showConfirm } from '../../utils/alertUtils';
 import { DUE_MESSAGES } from '../../messages/dueMessages';
@@ -21,10 +23,10 @@ const DueAmountScreen = ({ navigation }) => {
   const [periodScope, setPeriodScope] = useState('month');
   const [entries, setEntries] = useState([]);
   const [accountTotals, setAccountTotals] = useState([]);
-  const [totalDue, setTotalDue] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [amountEditGroup, setAmountEditGroup] = useState(null);
+  const [repayModalGroup, setRepayModalGroup] = useState(null);
 
   const dueFilterOpts = useMemo(() => {
     if (periodScope === 'all') return { scope: 'all' };
@@ -100,6 +102,24 @@ const DueAmountScreen = ({ navigation }) => {
     return groups;
   }, [entries]);
 
+  const dueSummaryTotals = useMemo(() => {
+    return groupedEntries.reduce(
+      (acc, g) => {
+        if (!g.due) return acc;
+        const s = computeDueRepayStats(g.due, g.repayments);
+        return {
+          totalPrincipal: acc.totalPrincipal + s.principal,
+          totalRemaining: acc.totalRemaining + s.remaining,
+        };
+      },
+      { totalPrincipal: 0, totalRemaining: 0 }
+    );
+  }, [groupedEntries]);
+
+  const repayModalStats = repayModalGroup
+    ? computeDueRepayStats(repayModalGroup.due, repayModalGroup.repayments)
+    : null;
+
   const loadData = useCallback(async () => {
     if (!user) return;
     const [entriesResult, totalsResult] = await Promise.all([
@@ -133,7 +153,6 @@ const DueAmountScreen = ({ navigation }) => {
       ]);
       if (entriesResult.success) {
         setEntries(entriesResult.data);
-        setTotalDue(entriesResult.total);
         if (totalsResult.success) {
           setAccountTotals(totalsResult.data);
         }
@@ -169,30 +188,21 @@ const DueAmountScreen = ({ navigation }) => {
     });
   };
 
-  const handleRepay = (entry) => {
-    showConfirm('Repay Due Amount', DUE_MESSAGES.REPAY_CONFIRM, async () => {
-      const result = await repayDueEntry({ userId: user.id, dueEntryId: entry.id });
-      if (result.success) {
-        showAlert('Success', DUE_MESSAGES.REPAY_SUCCESS);
-        loadData();
-      } else {
-        showAlert('Error', result.message || DUE_MESSAGES.REPAY_FAILED);
-      }
-    });
-  };
-
   const renderAllEntriesGroup = ({ item }) => {
     const due = item.due;
     if (!due) return null;
-    const latestRepayment = item.repayments.length > 0 ? item.repayments[0] : null;
+    const stats = computeDueRepayStats(due, item.repayments);
 
     return (
       <DueGroupedEntryRow
         due={due}
-        latestRepayment={latestRepayment}
+        latestRepayment={stats.latestRepayment}
+        totalReturned={stats.totalRepaid}
+        remainingDue={stats.remaining}
+        showRepayButton={stats.showRepayButton}
         onPress={() => navigation.navigate('EntryDetail', { entry: due })}
         onDelete={() => handleDeleteGroup(item)}
-        onRepay={() => handleRepay(due)}
+        onRepay={() => setRepayModalGroup(item)}
         onEditAmounts={() => setAmountEditGroup(item)}
       />
     );
@@ -263,11 +273,18 @@ const DueAmountScreen = ({ navigation }) => {
         <View style={styles.summaryIcon}>
           <Ionicons name="receipt-outline" size={26} color={COLORS.warning} />
         </View>
-        <View>
-          <Text style={styles.summaryLabel}>Total Due Amount</Text>
-          <Text style={styles.summaryAmount}>Rs. {formatAmount(totalDue)}</Text>
+        <View style={styles.summaryTextCol}>
+          <View style={styles.summaryLine}>
+            <Text style={styles.summaryLabel}>{DUE_MESSAGES.SUMMARY_TOTAL_DUE_PRINCIPAL}</Text>
+            <Text style={styles.summaryAmount}>Rs. {formatAmount(dueSummaryTotals.totalPrincipal)}</Text>
+          </View>
+          <View style={styles.summaryLine}>
+            <Text style={styles.summaryLabel}>{DUE_MESSAGES.SUMMARY_REMAINING_DUE}</Text>
+            <Text style={[styles.summaryAmount, styles.summaryRemaining]}>
+              Rs. {formatAmount(dueSummaryTotals.totalRemaining)}
+            </Text>
+          </View>
         </View>
-        <Text style={styles.summaryCount}>{entries.length} Entries</Text>
       </View>
       <View style={styles.tabRow}>
         <Pressable
@@ -331,6 +348,15 @@ const DueAmountScreen = ({ navigation }) => {
         onClose={() => setAmountEditGroup(null)}
         userId={user?.id}
         group={amountEditGroup}
+        onSaved={loadData}
+      />
+
+      <DueRepayModal
+        visible={Boolean(repayModalGroup)}
+        onClose={() => setRepayModalGroup(null)}
+        userId={user?.id}
+        dueEntry={repayModalGroup?.due}
+        remaining={repayModalStats?.remaining ?? 0}
         onSaved={loadData}
       />
     </View>
@@ -469,13 +495,23 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: COLORS.warning + '14',
     borderRadius: 16,
     padding: 18,
     gap: 12,
     borderWidth: 1,
     borderColor: COLORS.warning + '25',
+  },
+  summaryTextCol: {
+    flex: 1,
+    gap: 10,
+  },
+  summaryLine: {
+    gap: 2,
+  },
+  summaryRemaining: {
+    color: COLORS.expense,
   },
   summaryIcon: {
     width: 46,
@@ -487,16 +523,6 @@ const styles = StyleSheet.create({
   },
   summaryLabel: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginBottom: 2 },
   summaryAmount: { fontSize: FONTS.sizes.xl, fontWeight: FONTS.weights.bold, color: COLORS.warning },
-  summaryCount: {
-    marginLeft: 'auto',
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textSecondary,
-    backgroundColor: COLORS.surface,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-    overflow: 'hidden',
-  },
   emptyContainer: { alignItems: 'center', paddingVertical: 70 },
   emptyTitle: {
     fontSize: FONTS.sizes.lg,

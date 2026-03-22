@@ -17,8 +17,8 @@ import { COLORS } from '../../constants/colors';
 import { FONTS } from '../../constants/fonts';
 import { ENTRY_TYPES } from '../../constants/categories';
 import { formatAmount } from '../../utils/currencyUtils';
-import { getMonthName, formatTime12h } from '../../utils/dateUtils';
-import { deleteEntry, updateEntry, getEntryForDetail } from '../../services/entryService';
+import { getMonthName, formatTime12h, formatDate } from '../../utils/dateUtils';
+import { deleteEntry, updateEntry, getEntryForDetail, getRepaymentHistoryForDue } from '../../services/entryService';
 import { getPersons } from '../../services/personService';
 import { saveInvoice, formatFileSize, getFileType } from '../../services/fileService';
 import { Button, Dropdown, AttachmentPicker } from '../../components/common';
@@ -61,6 +61,7 @@ const EntryDetailScreen = ({ route, navigation }) => {
   const [editInvoice, setEditInvoice] = useState(null);
   const [invoiceRemoved, setInvoiceRemoved] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [repayHistory, setRepayHistory] = useState([]);
 
   const isEarning = entry.type === 'earning';
   const editIsEarning = editType === 'earning';
@@ -82,14 +83,23 @@ const EntryDetailScreen = ({ route, navigation }) => {
   useFocusEffect(
     useCallback(() => {
       if (!user?.id) return undefined;
+      let cancelled = false;
       (async () => {
         const r = await getPersons(user.id);
-        if (r.success) {
+        if (!cancelled && r.success) {
           setPersonOptions(r.data.map((p) => ({ value: String(p.id), label: p.name })));
         }
+        if (entry.entry_type === 'due' && entry.id) {
+          const hr = await getRepaymentHistoryForDue(user.id, entry.id);
+          if (!cancelled && hr.success) setRepayHistory(hr.data);
+        } else if (!cancelled) {
+          setRepayHistory([]);
+        }
       })();
-      return undefined;
-    }, [user?.id])
+      return () => {
+        cancelled = true;
+      };
+    }, [user?.id, entry.entry_type, entry.id])
   );
   const entryDate = new Date(entry.date);
   const dateDisplay = `${String(entryDate.getDate()).padStart(2, '0')} ${getMonthName(entryDate.getMonth() + 1)} ${entryDate.getFullYear()}`;
@@ -486,6 +496,27 @@ const EntryDetailScreen = ({ route, navigation }) => {
         )}
       </View>
 
+      {!editing && entry.entry_type === 'due' ? (
+        <View style={styles.detailsCard}>
+          <Text style={styles.sectionTitle}>{DUE_MESSAGES.REPAY_HISTORY_TITLE}</Text>
+          {repayHistory.length === 0 ? (
+            <Text style={styles.historyEmpty}>{DUE_MESSAGES.REPAY_HISTORY_EMPTY}</Text>
+          ) : (
+            repayHistory.map((row) => (
+              <View key={row.id} style={styles.historyRow}>
+                <View style={styles.historyRowTop}>
+                  <Text style={styles.historyAmount}>+ Rs. {formatAmount(Number(row.amount))}</Text>
+                  <Text style={styles.historyWhen}>
+                    {formatDate(row.date)} · {formatTime12h(row.date)}
+                  </Text>
+                </View>
+                {row.notes ? <Text style={styles.historyNote}>{row.notes}</Text> : null}
+              </View>
+            ))
+          )}
+        </View>
+      ) : null}
+
       {/* Invoice / Receipt */}
       {editing ? (
         <View style={styles.invoiceCard}>
@@ -736,6 +767,31 @@ const styles = StyleSheet.create({
   },
   recurringLabel: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.semiBold, color: COLORS.text, marginBottom: 2 },
   recurringHint: { fontSize: FONTS.sizes.xs, color: COLORS.textSecondary },
+
+  historyEmpty: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary },
+  historyRow: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+  },
+  historyRowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  historyAmount: {
+    fontSize: FONTS.sizes.md,
+    fontWeight: FONTS.weights.bold,
+    color: COLORS.income,
+  },
+  historyWhen: { fontSize: FONTS.sizes.xs, color: COLORS.textSecondary },
+  historyNote: {
+    marginTop: 6,
+    fontSize: FONTS.sizes.sm,
+    color: COLORS.textSecondary,
+  },
 
   invoiceCard: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 20, marginBottom: 16 },
   imageSection: { alignItems: 'center' },
