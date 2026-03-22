@@ -128,7 +128,6 @@ const DueAmountScreen = ({ navigation }) => {
     ]);
     if (entriesResult.success) {
       setEntries(entriesResult.data);
-      setTotalDue(entriesResult.total);
       if (totalsResult.success) {
         setAccountTotals(totalsResult.data);
       }
