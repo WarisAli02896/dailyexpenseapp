@@ -381,6 +381,32 @@
         "functionalityChanges": 0
       },
       "notes": "Post-QA: pushed to GitHub. Segment 2 (build) incremented 3 to 4; segment 5 reset to 1 for first row under build 1.4 at feature 8.13. Includes DueAmountEditModal, entryMessages re-export (web bundle fix), due account/amount edits, EntryDetail from-to. versionCode 10408131."
+    },
+    {
+      "buildVersion": "1.5.8.13.1",
+      "releaseDate": "2026-03-22",
+      "oldFeatures": [],
+      "updatedFeatures": [
+        {
+          "featureName": "Edit given and returned amounts on due entries",
+          "featureVersion": "8.13",
+          "functionalityVersion": "8.13.2",
+          "changeType": "updated",
+          "screensAffected": [
+            "DueAmountEditModal"
+          ],
+          "functionalities": [
+            "Equal-size Cancel and Save actions via flex slots and matching border box"
+          ]
+        }
+      ],
+      "newFeatures": [],
+      "summary": {
+        "buildNumber": 16,
+        "featureChanges": 0,
+        "functionalityChanges": 1
+      },
+      "notes": "Post-QA: build segment 4 to 5; increment reset to 1 at 8.13. Due edit modal button layout. versionCode 10508131."
     }
   ]
 }

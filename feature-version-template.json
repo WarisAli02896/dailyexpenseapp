@@ -501,7 +501,8 @@
             "Block returned edits when multiple repayments are linked and surface dueMessages guidance",
             "Persist updates in a transaction via updateDueGroupedAmounts",
             "Entry detail edit: change From and To accounts for due entries with repayment row sync",
-            "getEntryForDetail and updateEntry joins for person_name, from_person_name, and due_to_person_name"
+            "getEntryForDetail and updateEntry joins for person_name, from_person_name, and due_to_person_name",
+            "DueAmountEditModal: equal-width Cancel/Save using flex slots and transparent border on primary"
           ]
         }
       ]

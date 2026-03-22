@@ -148,13 +148,24 @@ const DueAmountEditModal = ({ visible, onClose, userId, group, onSaved }) => {
           ) : null}
 
           <View style={styles.actions}>
-            <Button title={DUE_MESSAGES.CANCEL} variant="outline" onPress={onClose} style={styles.actionBtn} />
-            <Button
-              title={DUE_MESSAGES.SAVE_AMOUNTS}
-              onPress={handleSave}
-              loading={saving}
-              style={styles.actionBtn}
-            />
+            <View style={styles.actionSlot}>
+              <Button
+                title={DUE_MESSAGES.CANCEL}
+                variant="outline"
+                size="md"
+                onPress={onClose}
+                style={styles.actionBtnFill}
+              />
+            </View>
+            <View style={styles.actionSlot}>
+              <Button
+                title={DUE_MESSAGES.SAVE_AMOUNTS}
+                size="md"
+                onPress={handleSave}
+                loading={saving}
+                style={[styles.actionBtnFill, styles.actionBtnFillPrimary]}
+              />
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -236,10 +247,27 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
-    gap: 10,
     marginTop: 22,
+    columnGap: 10,
+    gap: 10,
   },
-  actionBtn: { flex: 1 },
+  /** Slot takes exactly half the row; Pressable must use width 100% (RN does not stretch Pressable by flex alone). */
+  actionSlot: {
+    flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
+  },
+  actionBtnFill: {
+    width: '100%',
+    minHeight: 52,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+  },
+  /** Same border box as outline (1.5) so filled button matches cancel height/width visually. */
+  actionBtnFillPrimary: {
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
 });
 
 export default DueAmountEditModal;
