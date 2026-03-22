@@ -442,6 +442,32 @@
         "functionalityChanges": 3
       },
       "notes": "Partial due repayments, history, and summary totals. versionCode 10508141. Git push + release APK."
+    },
+    {
+      "buildVersion": "1.5.8.14.2",
+      "releaseDate": "2026-03-23",
+      "oldFeatures": [],
+      "updatedFeatures": [
+        {
+          "featureName": "Partial repayments and repayment history per due",
+          "featureVersion": "8.14",
+          "functionalityVersion": "8.14.1",
+          "changeType": "fix",
+          "screensAffected": [
+            "DueAmountScreen"
+          ],
+          "functionalities": [
+            "Remove invalid setTotalDue call so getDueAccountTotals result applies and Accounts tab lists persons"
+          ]
+        }
+      ],
+      "newFeatures": [],
+      "summary": {
+        "buildNumber": 18,
+        "featureChanges": 0,
+        "functionalityChanges": 1
+      },
+      "notes": "Release build: Due Accounts tab empty after partial-repay refactor; versionCode 10508142."
     }
   ]
 }
